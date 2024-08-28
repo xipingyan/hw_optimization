@@ -10,5 +10,18 @@ Sample [codes](https://cuda-tutorial.github.io/).
 3. CPU vs GPU architecture
    CPU: latency first design, GPU: throughput first design.
 
+#### CodeSamples
+Fork from Sample [codes](https://cuda-tutorial.github.io/).
+
+``Dependencies:`` Install cuda driver.
+
+``Build:``
+
+   mkdir build && cd build
+   cmake .. && make -j8
+
+``Run:``
+
+   ./01_HelloGPU/01_HelloGPU
 
 # Reference
