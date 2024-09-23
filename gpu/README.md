@@ -24,4 +24,35 @@ Fork from Sample [codes](https://cuda-tutorial.github.io/).
 
    ./01_HelloGPU/01_HelloGPU
 
+# NSight:profiling tool
+
+   NSight is profiling tool, support GPU, ARM, .... <br>
+   For Nvidia GPU based on CUPTI interface. <br>
+   Install Nsight refer: [nsight-systems/InstallationGuide](https://docs.nvidia.com/nsight-systems/InstallationGuide/index.html#getting-started-guide)
+
+#### 1. ncu and nuc-ui: (optimize a single grid launch)
+
+      $ ncu --help
+      $ ncu --mode=launch ./09_Streams/09_Streams
+
+   `Q&A:` <br>
+   ``Error:`` ==ERROR== ERR_NVGPUCTRPERM - The user does not have permission to access NVIDIA GPU Performance Counters on the target device 0. <br>
+   ``Solution:`` https://developer.nvidia.com/nvidia-development-tools-solutions-err_nvgpuctrperm-permission-issue-performance-counters <br>
+
+   Templorarily solution: <br>
+
+      sudo systemctl isolate multi-user
+      sudo modprobe -rf nvidia_uvm nvidia_drm nvidia_modeset nvidia-vgpu-vfio nvidia
+      sudo modprobe nvidia NVreg_RestrictProfilingToAdminUsers=0
+      sudo systemctl isolate graphical
+
+   See report
+
+      $ ncu-ui <MyReport.ncu-rep>
+#### 2. nsys and nsys-ui (profiling CPU/GPU interaction, and GPU concurrency issue.)
+
+   $ nsys profile -o profile_nsys_result --force-overwrite true ./app
+   check report
+   $ nsys-ui profile_nsys_result.nsys-rep
+
 # Reference
