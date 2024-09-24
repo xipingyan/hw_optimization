@@ -28,7 +28,8 @@ Fork from Sample [codes](https://cuda-tutorial.github.io/).
 
    NSight is profiling tool, support GPU, ARM, .... <br>
    For Nvidia GPU based on CUPTI interface. <br>
-   Install Nsight refer: [nsight-systems/InstallationGuide](https://docs.nvidia.com/nsight-systems/InstallationGuide/index.html#getting-started-guide)
+   Install Nsight refer: [nsight-systems/InstallationGuide](https://docs.nvidia.com/nsight-systems/InstallationGuide/index.html#getting-started-guide) <br>
+   NVIDIA recommend [Nsight course video](https://resources.nvidia.com/en-us-nsight-developer-tools/nsight-compute)
 
 #### 1. ncu and nuc-ui: (optimize a single grid launch)
 
