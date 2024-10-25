@@ -2,7 +2,11 @@
 // #include <cuda_device_runtime_api.h>
 #include <iostream>
 
+#include "common.hpp"
+
 void list_one_gpu_info(int devID) {
+	list_devices();
+
 	// cudaError_t rt = cudaSetDevice(devID);
 	// if (cudaSuccess != rt) {
 	// 	std::cout << "  cudaSetDevice(" << devID << ") fail, return " << rt << std::endl;
@@ -38,6 +42,8 @@ most essential things about its capabilities.
 int main()
 {
 	std::cout << "Hello levelzero" << std::endl;
+	list_one_gpu_info(0);
+
 	// // Count CUDA-capable devices on the system
 	// int numDevices;
 	// cudaGetDeviceCount(&numDevices);

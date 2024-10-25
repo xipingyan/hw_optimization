@@ -2,6 +2,8 @@
 Learn [video1](https://www.youtube.com/watch?v=6kT7vVHCZIc), [video2](https://www.youtube.com/watch?v=mrDWmnXC5Ck)
 Sample [codes](https://cuda-tutorial.github.io/).
 
+CUDA [API guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/index.html)
+
 #### Video1 Note
 
 1. The free lunch is over
