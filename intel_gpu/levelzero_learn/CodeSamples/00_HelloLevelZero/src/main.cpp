@@ -1,38 +1,72 @@
-// #include <cuda_runtime_api.h>
-// #include <cuda_device_runtime_api.h>
 #include <iostream>
+#include <level_zero/ze_api.h>
 
 #include "common.hpp"
 
-void list_one_gpu_info(int devID) {
-	list_devices();
+void list_devices() {
+	DEBUG_LOG << "Call zeInit" << std::endl;
+	auto r = zeInit(0);
+	CHECK_RET(r)
 
-	// cudaError_t rt = cudaSetDevice(devID);
-	// if (cudaSuccess != rt) {
-	// 	std::cout << "  cudaSetDevice(" << devID << ") fail, return " << rt << std::endl;
-	// 	return;
-	// }
+	DEBUG_LOG << "Call zeDriverGet" << std::endl;
+	uint32_t driverCount = 0;
+	r = zeDriverGet(&driverCount, nullptr);
+	CHECK_RET(r)
+	DEBUG_LOG << "Found GPU driverCount = " << driverCount << std::endl;
 
-	// // Get the ID of the currently selected active CUDA device
-	// int device = devID;
-	// cudaGetDevice(&device);
+	ze_driver_handle_t* allDrivers = (ze_driver_handle_t*)malloc(driverCount * sizeof(ze_driver_handle_t));
+	zeDriverGet(&driverCount, allDrivers);
 
-	// // Fetch its properties
-	// cudaDeviceProp props;
-	// cudaGetDeviceProperties(&props, device);
+	ze_driver_handle_t hDriver = nullptr;
+	ze_device_handle_t hDevice = nullptr;
+	for (uint32_t i = 0; i < driverCount; i++) {
+		uint32_t deviceCount = 0;
+    	zeDeviceGet(allDrivers[i], &deviceCount, nullptr);
+		DEBUG_LOG << "  Driver: " << i << ", deviceCount = " << deviceCount << std::endl;
 
-	// /* 
-	// We only print the most fundamental properties here. cudaDeviceProp 
-	// contains a long range of indicators to check for different things
-	// that your GPU may or may not support, as well as factors for 
-	// performance. However, the most essential property to know about is
-	// the compute capability of the device. 
-	// */
-	// std::cout << "  Model: " << props.name << std::endl;
-	// std::cout << "  Compute capability: " << props.major << "." << props.minor << std::endl;
-	// std::cout << "  Memory: " << props.totalGlobalMem / float(1 << 30) << " GiB" << std::endl;
-	// std::cout << "  Multiprocessors: " << props.multiProcessorCount << std::endl;
-	// std::cout << "  Clock rate: " << props.clockRate / float(1'000'000) << " GHz" << std::endl;
+		ze_device_handle_t* allDevices = (ze_device_handle_t*)malloc(deviceCount * sizeof(ze_device_handle_t));
+    	zeDeviceGet(allDrivers[i], &deviceCount, allDevices);
+
+		for(uint32_t d = 0; d < deviceCount; ++d) {
+			ze_device_properties_t device_properties {};
+			device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
+			zeDeviceGetProperties(allDevices[d], &device_properties);
+			if(ZE_DEVICE_TYPE_GPU == device_properties.type) {
+				hDriver = allDrivers[i];
+				hDevice = allDevices[d];
+				DEBUG_LOG << "    Device: " << d << ", device name = " << device_properties.name << std::endl;
+#define PRINT_PROP(PROPERITY) DEBUG_LOG << "      " << #PROPERITY << " = " << device_properties.PROPERITY << std::endl
+#define PRINT_PROP_MEM(PROPERITY) DEBUG_LOG << "      " << #PROPERITY << " = " << device_properties.PROPERITY /1024/1024/1024. << " GB" << std::endl
+				PRINT_PROP(type);
+				PRINT_PROP(vendorId);
+				PRINT_PROP(deviceId);
+
+				PRINT_PROP(flags);
+				PRINT_PROP(subdeviceId);
+
+				PRINT_PROP(coreClockRate);
+				PRINT_PROP_MEM(maxMemAllocSize);
+				PRINT_PROP(maxHardwareContexts);
+				PRINT_PROP(maxCommandQueuePriority);
+				PRINT_PROP(subdeviceId);
+
+				PRINT_PROP(numThreadsPerEU);
+				PRINT_PROP(physicalEUSimdWidth);
+				PRINT_PROP(numEUsPerSubslice);
+				PRINT_PROP(numSubslicesPerSlice);
+				PRINT_PROP(numSlices);
+				PRINT_PROP(timerResolution);
+				PRINT_PROP(subdeviceId);
+			}
+		}
+
+		free(allDevices);
+		if(nullptr != hDriver) {
+			break;
+		}
+	}
+
+	free(allDrivers);
 }
 
 /*
@@ -41,29 +75,13 @@ most essential things about its capabilities.
 */
 int main()
 {
-	std::cout << "Hello levelzero" << std::endl;
-	list_one_gpu_info(0);
-
-	// // Count CUDA-capable devices on the system
-	// int numDevices;
-	// cudaGetDeviceCount(&numDevices);
-
-	// if (numDevices == 0)
-	// {
-	// 	std::cout << "You have no CUDA devices available!" << std::endl;
-	// 	return -1;
-	// }
-
-	// for (auto n = 0; n < numDevices; n++) {
-	// 	std::cout << "== GPU:" << n << std::endl;
-	// 	list_one_gpu_info(n);
-	// }
+	std::cout << "Hello LevelZero, start to list all drivers and devices." << std::endl;
+	list_devices();
+	std::cout << "Done." << std::endl;
 	return 0;
 }
 
 /*
 Exercises:
-1) Change the behavior such that the properties are not just printed for one, but all available CUDA devices you have!
-(Even if you have just one)
-2) Print a few more interesting properties and read up in the specification what they mean.
+1) Print a few more interesting properties and read up in the specification what they mean.
 */
