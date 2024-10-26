@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.20)
 
 set(PRJ_NAME 00_HelloLevelZero)
 project(${PRJ_NAME})
