@@ -11,3 +11,4 @@ set(LevelZeroLib ${CMAKE_SOURCE_DIR}/level-zero/build/install/lib)
 set(Utils  ${CMAKE_SOURCE_DIR}/utils)
 
 add_subdirectory(00_HelloLevelZero)
+add_subdirectory(01_Context)
