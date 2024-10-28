@@ -21,7 +21,7 @@ bool getCmdQueue(ze_device_handle_t hDevice, uint32_t& computeQueueGroupOrdinal)
 	uint32_t cmdqueueGroupCount = 0;
 	auto r = zeDeviceGetCommandQueueGroupProperties(hDevice, &cmdqueueGroupCount, nullptr);
 	CHECK_RET(r)
-		std::cout << "cmdqueueGroupCount = " << cmdqueueGroupCount << std::endl;
+	std::cout << "cmdqueueGroupCount = " << cmdqueueGroupCount << std::endl;
 
 	ze_command_queue_group_properties_t* cmdqueueGroupProperties = (ze_command_queue_group_properties_t*)
 		malloc(cmdqueueGroupCount * sizeof(ze_command_queue_group_properties_t));
@@ -67,8 +67,80 @@ int main()
 	auto ret = getCmdQueue(hDevice, computeQueueGroupOrdinal);
 
 	std::cout << "getCmdQueue return " << (ret ? "Success" : "Fail") << std::endl;
-	if (ret)
-		std::cout << "Got computeQueueGroupOrdinal = " << computeQueueGroupOrdinal << std::endl;
+	if (!ret) {
+		return EXIT_FAILURE;
+	}
+	std::cout << "Got computeQueueGroupOrdinal = " << computeQueueGroupOrdinal << std::endl;
+
+	// Create context	
+	ze_context_handle_t hContext;
+	ze_context_desc_t ctxtDesc = { ZE_STRUCTURE_TYPE_CONTEXT_DESC, 0, 0 };
+	r = zeContextCreate(hDriver, &ctxtDesc, &hContext);
+	CHECK_RET(r)
+	std::cout << "Create context: hContext = " << hContext << std::endl;
+
+	// Create a command queue
+	ze_command_queue_desc_t commandQueueDesc = {
+		ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC,
+		nullptr,
+		computeQueueGroupOrdinal,
+		0, // index
+		0, // flags
+		ZE_COMMAND_QUEUE_MODE_DEFAULT,
+		ZE_COMMAND_QUEUE_PRIORITY_NORMAL
+	};
+	ze_command_queue_handle_t hCommandQueue;
+	r = zeCommandQueueCreate(hContext, hDevice, &commandQueueDesc, &hCommandQueue);
+	CHECK_RET(r)
+	std::cout << "Create command queue: hCommandQueue = " << hCommandQueue << std::endl;
+
+	// Create a command list
+	ze_command_list_desc_t commandListDesc = {
+		ZE_STRUCTURE_TYPE_COMMAND_LIST_DESC,
+		nullptr,
+		computeQueueGroupOrdinal,
+		0 // flags
+	};
+	ze_command_list_handle_t hCommandList;
+	zeCommandListCreate(hContext, hDevice, &commandListDesc, &hCommandList);
+	CHECK_RET(r)
+	std::cout << "Create command list: hCommandList = " << hCommandList << std::endl;
+
+	// finished appending commands (typically done on another thread)
+	r = zeCommandListClose(hCommandList);
+	CHECK_RET(r)
+	std::cout << "Close command list: hCommandList = " << hCommandList << std::endl;
+
+	// Execute command list in command queue
+	std::cout << "Execute command list in command queue" << std::endl;
+	r = zeCommandQueueExecuteCommandLists(hCommandQueue, 1, &hCommandList, nullptr);
+	CHECK_RET(r)
+
+	// synchronize host and device
+	std::cout << "Synchronize host and device" << std::endl;
+	r = zeCommandQueueSynchronize(hCommandQueue, UINT32_MAX);
+	CHECK_RET(r)
+
+	// Reset (recycle) command list for new commands
+	std::cout << "Reset command list for new commands" << std::endl;
+	r = zeCommandListReset(hCommandList);
+	CHECK_RET(r)
+
+	// Create an immediate command list
+	// ze_command_queue_desc_t commandQueueDesc = {
+	// 	ZE_STRUCTURE_TYPE_COMMAND_QUEUE_DESC,
+	// 	nullptr,
+	// 	computeQueueGroupOrdinal,
+	// 	0, // index
+	// 	0, // flags
+	// 	ZE_COMMAND_QUEUE_MODE_DEFAULT,
+	// 	ZE_COMMAND_QUEUE_PRIORITY_NORMAL
+	// };
+	r = zeCommandListCreateImmediate(hContext, hDevice, &commandQueueDesc, &hCommandList);
+	std::cout << "Create an immediate command list: hCommandList = " << hCommandList << std::endl;
+
+	// Immediately submit a kernel to the device
+	//zeCommandListAppendLaunchKernel(hCommandList, hKernel, &launchArgs, nullptr, 0, nullptr);
 
 	std::cout << "Done." << std::endl;
 	return 0;
