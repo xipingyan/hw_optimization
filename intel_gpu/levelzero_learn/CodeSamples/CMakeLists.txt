@@ -12,3 +12,4 @@ set(Utils  ${CMAKE_SOURCE_DIR}/utils)
 
 add_subdirectory(00_HelloLevelZero)
 add_subdirectory(01_Context)
+add_subdirectory(02_CommandListAndQueue)
