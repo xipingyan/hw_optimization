@@ -36,8 +36,7 @@ int main()
 	std::cout << "Got computeQueueGroupOrdinal = " << computeQueueGroupOrdinal << std::endl;
 
 	// Create context
-	ze_context_handle_t hContext;
-	createContext(hDriver, hContext);
+	ze_context_handle_t hContext = create_context(hDriver);
 	std::cout << "Create context: hContext = " << hContext << std::endl;
 
 	// Create a command queue
