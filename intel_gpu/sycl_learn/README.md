@@ -7,18 +7,14 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
 
 # Build Samples and Run
 
-    cd CodeSamples
-    mkdir build && cd build
+#### Windows(Not work)
+
     cmake -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icx -G"Visual Studio 16" ..
 
-Build all tests:
+#### Linux
 
-    cmake --build . --target .\ALL_BUILD --config Release
-
-Build first test:
-
-    cmake --build . --target .\01_HelloSycl\01_HelloSycl --config Release
-
-Run first case:
-
-    .\01_HelloSycl\Release\01_HelloSycl.exe
+    source /opt/intel/oneapi/setvars.sh
+    cd CodeSamples
+    mkdir build && cd build
+    cmake -DCMAKE_CXX_COMPILER=icpx ..      # Sycl need to use icpx (intel compiler)
+    SYCL_DUMP_IMAGES=1  ./01_HelloSycl/01_HelloSycl

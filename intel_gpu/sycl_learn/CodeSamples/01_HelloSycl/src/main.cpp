@@ -17,9 +17,9 @@ int main(int argc, char* argv[])
     constexpr int n_items = 16;
     int *items = sycl::malloc_shared<int>(n_items, queue);
     queue.parallel_for(sycl::range<1>(n_items), [items] (sycl::id<1> i) {
-        double x1 = pow((1.0 + sqrt(5.0))/2, i);
-        double x2 = pow((1.0 - sqrt(5.0))/2, i);
-        items[i] = round((x1 - x2)/sqrt(5));
+        float x1 = powf((1.0f + sqrtf(5.0))/2, i);
+        float x2 = powf((1.0f - sqrtf(5.0))/2, i);
+        items[i] = roundf((x1 - x2)/sqrtf(5));
     }).wait();
 
     for(int i = 0 ; i < n_items ; ++i) {
