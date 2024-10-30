@@ -93,11 +93,20 @@ int main()
 	// r = zeEventHostSynchronize(hEvent, 0);
 	// CHECK_RET(r)
 
+	// Calculation execution time(s)
+	double globalTimeInNs = ( tsResult->global.kernelEnd >= tsResult->global.kernelStart )
+		? ( tsResult->global.kernelEnd - tsResult->global.kernelStart ) * timestampFreq
+		: (( timestampMaxValue - tsResult->global.kernelStart) + tsResult->global.kernelEnd + 1 ) * timestampFreq;
+
+	double contextTimeInNs = ( tsResult->context.kernelEnd >= tsResult->context.kernelStart )
+		? ( tsResult->context.kernelEnd - tsResult->context.kernelStart ) * timestampFreq
+		: (( timestampMaxValue - tsResult->context.kernelStart) + tsResult->context.kernelEnd + 1 ) * timestampFreq;
+	
 	std::cout << "Done." << std::endl;
 	return 0;
 }
 
 /*
 Exercises:
-1) Print a few more interesting properties and read up in the specification what they mean.
+1) 
 */
