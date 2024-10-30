@@ -3,6 +3,7 @@
 #include <level_zero/ze_api.h>
 
 #include "common.hpp"
+#include "ze_api_wrap.hpp"
 
 /*
 Contexts: 驱动使用的逻辑对象，managing all memory, command queues/lists, modules, synchronization objects, etc.

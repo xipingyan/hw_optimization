@@ -3,6 +3,7 @@
 #include <level_zero/ze_api.h>
 
 #include "common.hpp"
+#include "ze_api_wrap.hpp"
 
 /*
 Link: https://oneapi-src.github.io/level-zero-spec/level-zero/latest/core/PROG.html#command-queues-and-command-lists
