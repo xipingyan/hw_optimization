@@ -14,6 +14,23 @@ Range-based Memory barriers:
 
 #define NS_IN_SEC 1000000000LL
 
+long get_file_size(const char *filename) {
+    FILE *fp = fopen(filename, "r");
+
+    if (fp==NULL)
+        return -1;
+
+    if (fseek(fp, 0, SEEK_END) < 0) {
+        fclose(fp);
+        return -1;
+    }
+
+    long size = ftell(fp);
+    // release the resources when not required
+    fclose(fp);
+    return size;
+}
+
 int main()
 {
 	ze_driver_handle_t hDriver = nullptr;
@@ -77,8 +94,38 @@ int main()
 	CHECK_RET(r)
 	std::cout << "Alloc device memory: tsResult = " << tsResult << std::endl;
 
+	// ============================================
+	// Create kernel from IL(SPIR)
+	ze_module_handle_t hModule;
+	
+	// ZE_MODULE_FORMAT_NATIVE, ZE_MODULE_FORMAT_FORCE_UINT32
+	ze_module_format_t format = ZE_MODULE_FORMAT_IL_SPIRV;
+	size_t inputSize = 0;
+	uint8_t *pInputModule = nullptr; 
+	const char* pBuildFlags = "-ze-opt-disable";
+	const char* fn = "../../../sycl_learn/CodeSamples/build/sycl_spir64.spv";
+	inputSize = get_file_size(fn);
+	FILE *f = fopen(fn, "rb");
+	if (f==nullptr) {
+		std::cout << "Can't open spir file." << std::endl;
+		return 0;
+	}
+	pInputModule = (uint8_t*)malloc(inputSize);
+	fclose(f);
+	const ze_module_constants_t* pConstants = nullptr;
+	ze_module_desc_t moduleDesc = {ZE_STRUCTURE_TYPE_MODULE_DESC, 0, format, inputSize, pInputModule, pBuildFlags, pConstants};
+	r = zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, nullptr);
+	CHECK_RET(r)
+
+	ze_kernel_desc_t kernelDesc = {ZE_STRUCTURE_TYPE_KERNEL_DESC, 0, ZE_KERNEL_FLAG_FORCE_RESIDENCY, "vec_add"};
+	ze_kernel_handle_t hKernel;
+	r = zeKernelCreate(hModule, &kernelDesc, &hKernel);
+	CHECK_RET(r)
+
 	// Append a signal of a timestamp event into the command list after the kernel executes
-	// zeCommandListAppendLaunchKernel(hCommandList, hKernel1, &launchArgs, hTSEvent, 0, nullptr);
+	ze_group_count_t launchFuncArgs = {1, 1, 1};
+	r = zeCommandListAppendLaunchKernel(hCommandList, hKernel, &launchFuncArgs, hTSEvent, 0, nullptr);
+	CHECK_RET(r)
 
 	// Append a query of a timestamp event into the command list
 	r = zeCommandListAppendQueryKernelTimestamps(hCommandList, 1, &hTSEvent, tsResult, nullptr, hEvent, 1, &hTSEvent);
@@ -90,8 +137,8 @@ int main()
 	CHECK_RET(r)
 
 	// Wait on event to complete
-	// r = zeEventHostSynchronize(hEvent, 0);
-	// CHECK_RET(r)
+	r = zeEventHostSynchronize(hEvent, 0);
+	CHECK_RET(r)
 
 	// Calculation execution time(s)
 	double globalTimeInNs = ( tsResult->global.kernelEnd >= tsResult->global.kernelStart )
@@ -103,6 +150,7 @@ int main()
 		: (( timestampMaxValue - tsResult->context.kernelStart) + tsResult->context.kernelEnd + 1 ) * timestampFreq;
 	
 	std::cout << "Done." << std::endl;
+	free(pInputModule);
 	return 0;
 }
 
