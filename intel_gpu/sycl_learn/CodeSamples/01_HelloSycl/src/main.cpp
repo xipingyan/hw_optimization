@@ -8,7 +8,7 @@
 std::vector<float> vec_add(std::vector<float>& a, std::vector<float>& b, sycl::queue& queue) {
     std::vector<float> sum(a.size());
     // Compute the first n_items values in a well known sequence
-    constexpr int n_items = 10000;
+    size_t n_items = a.size();
     float *items = sycl::malloc_shared<float>(n_items, queue);
     float *a_dev = sycl::malloc_shared<float>(n_items, queue);
     float *b_dev = sycl::malloc_shared<float>(n_items, queue);
@@ -23,10 +23,7 @@ std::vector<float> vec_add(std::vector<float>& a, std::vector<float>& b, sycl::q
         items[i] = roundf(x1+x2);
     }).wait();
 
-    // for(int i = 0 ; i < n_items ; ++i) {
-    //     std::cout << items[i] << std::endl;
-    // }
-    for (size_t i = 0; i < 10000; i++) {
+    for (size_t i = 0; i < a.size(); i++) {
             sum[i] = items[i];
     }
     free(items, queue);
@@ -37,8 +34,8 @@ int main(int argc, char* argv[])
 {
     sycl::queue queue;
     std::cout << "Using "
-        << queue.get_device().get_info<sycl::info::device::name>()
-        << std::endl;
+              << queue.get_device().get_info<sycl::info::device::name>()
+              << std::endl;
 
     std::vector<float> a, b, expected;
     for (int i = 0; i < 10000; i++) {
@@ -48,11 +45,13 @@ int main(int argc, char* argv[])
     }
     auto result = vec_add(a, b, queue);
 
+    bool result_is_expected = true;
     for (int i = 0; i < 10000; i++) {
         if (fabs(expected[i] - result[i]) > 0.1f) {
             std::cout << "== Result [" << i << "] diff: " << fabs(expected[i] - result[i]) << ", result=" << result[i] <<  std::endl;
+            result_is_expected = false;
         }
     }
-
+    std::cout << "Done, result is " << (result_is_expected ? "expected" : "not expected") << std::endl;
     return 0;
 }
