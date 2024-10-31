@@ -6,11 +6,9 @@ project(${PRJ_NAME} LANGUAGES C)
 find_package(OpenCL REQUIRED)
 
 file(GLOB SRC 
-	"src/*.c")
+	"src/*.cpp")
 
 #MESSAGE(STATUS "Utils=${Utils}")
 
-add_executable(${PRJ_NAME}
-	${SRC}
-)
+add_executable(${PRJ_NAME} ${SRC})
 target_link_libraries(${PRJ_NAME} PRIVATE OpenCL::OpenCL)
