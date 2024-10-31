@@ -6,29 +6,35 @@
 
 inline bool get_device(ze_driver_handle_t& hDriver, ze_device_handle_t& hDevice) {
 	// Initialize the driver
-	zeInit(0);
+	auto r = zeInit(ZE_INIT_FLAG_GPU_ONLY);
+	CHECK_RET(r)
 
 	// Discover all the driver instances
 	uint32_t driverCount = 0;
-	zeDriverGet(&driverCount, nullptr);
+	r = zeDriverGet(&driverCount, nullptr);
+	CHECK_RET(r)
 
 	ze_driver_handle_t* allDrivers = (ze_driver_handle_t*)malloc(driverCount * sizeof(ze_driver_handle_t));
-	zeDriverGet(&driverCount, allDrivers);
+	r = zeDriverGet(&driverCount, allDrivers);
+	CHECK_RET(r)
 
 	// Find a driver instance with a GPU device
 	// ze_driver_handle_t hDriver = nullptr;
 	// ze_device_handle_t hDevice = nullptr;
 	for(uint32_t i = 0; i < driverCount; ++i) {
 		uint32_t deviceCount = 0;
-		zeDeviceGet(allDrivers[i], &deviceCount, nullptr);
+		r = zeDeviceGet(allDrivers[i], &deviceCount, nullptr);
+		CHECK_RET(r)
 
 		ze_device_handle_t* allDevices = (ze_device_handle_t*)malloc(deviceCount * sizeof(ze_device_handle_t));
-		zeDeviceGet(allDrivers[i], &deviceCount, allDevices);
+		r = zeDeviceGet(allDrivers[i], &deviceCount, allDevices);
+		CHECK_RET(r)
 
 		for(uint32_t d = 0; d < deviceCount; ++d) {
 			ze_device_properties_t device_properties {};
 			device_properties.stype = ZE_STRUCTURE_TYPE_DEVICE_PROPERTIES;
-			zeDeviceGetProperties(allDevices[d], &device_properties);
+			r = zeDeviceGetProperties(allDevices[d], &device_properties);
+			CHECK_RET(r)
 
 			if(ZE_DEVICE_TYPE_GPU == device_properties.type) {
 				hDriver = allDrivers[i];
