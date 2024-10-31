@@ -56,7 +56,8 @@ std::vector<float> vec_div_4(std::vector<float>& a, sycl::queue& queue) {
 
 int main(int argc, char* argv[])
 {
-    sycl::queue queue;
+    sycl::queue queue{sycl::gpu_selector_v};
+    // sycl::queue queue;
     std::cout << "Using "
               << queue.get_device().get_info<sycl::info::device::name>()
               << std::endl;

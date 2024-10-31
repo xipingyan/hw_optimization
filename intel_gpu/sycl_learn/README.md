@@ -13,6 +13,8 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
 
 #### Linux
 
+``Linux``: Add current user to render and video group: ``sudo usermod -a -G render xiping``
+
     source /opt/intel/oneapi/setvars.sh
     cd CodeSamples
     mkdir build && cd build

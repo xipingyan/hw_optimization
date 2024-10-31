@@ -8,9 +8,12 @@ Guide: https://oneapi-src.github.io/level-zero-spec/level-zero/latest/index.html
 
 ``Windows dependencies``: install spectre v14.1 in VS 2019. Refer [Fix error MSB8040 Guide](https://learn.microsoft.com/en-us/visualstudio/msbuild/errors/msb8040?view=vs-2022)
 
+``Linux``: Add current user to render and video group: ``sudo usermod -a -G render xiping``
+
+    source /opt/intel/oneapi/setvars.sh
     cd CodeSamples\level-zero\
     mkdir build && make install
-    cmake -DCMAKE_INSTALL_PREFIX=install ..
+    cmake -DCMAKE_CXX_COMPILER=icpx -DCMAKE_INSTALL_PREFIX=install ..
     make -j20 && make install
 
 # Build Samples and Run
