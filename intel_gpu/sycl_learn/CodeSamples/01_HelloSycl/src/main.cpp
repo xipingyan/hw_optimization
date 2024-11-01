@@ -33,27 +33,27 @@ std::vector<float> vec_add(std::vector<float>& a, std::vector<float>& b, sycl::q
     return sum;
 }
 
-std::vector<float> vec_div_4(std::vector<float>& a, sycl::queue& queue) {
-    std::vector<float> dst(a.size());
-    // Compute the first n_items values in a well known sequence
-    size_t n_items = a.size();
-    float *items = sycl::malloc_shared<float>(n_items, queue);
-    float *a_dev = sycl::malloc_shared<float>(n_items, queue);
-    for (size_t i = 0; i < a.size(); i++) {
-        a_dev[i] = a[i];
-    }
+// std::vector<float> vec_div_4(std::vector<float>& a, sycl::queue& queue) {
+//     std::vector<float> dst(a.size());
+//     // Compute the first n_items values in a well known sequence
+//     size_t n_items = a.size();
+//     float *items = sycl::malloc_shared<float>(n_items, queue);
+//     float *a_dev = sycl::malloc_shared<float>(n_items, queue);
+//     for (size_t i = 0; i < a.size(); i++) {
+//         a_dev[i] = a[i];
+//     }
 
-    queue.parallel_for(sycl::range<1>(n_items), [items, a_dev] (sycl::id<1> i) {
-        items[i] = a_dev[i] / 4.f;
-    }).wait();
+//     queue.parallel_for(sycl::range<1>(n_items), [items, a_dev] (sycl::id<1> i) {
+//         items[i] = a_dev[i] / 4.f;
+//     }).wait();
 
-    for (size_t i = 0; i < a.size(); i++) {
-            dst[i] = items[i];
-    }
-    free(items, queue);
-    free(a_dev, queue);
-    return dst;
-}
+//     for (size_t i = 0; i < a.size(); i++) {
+//             dst[i] = items[i];
+//     }
+//     free(items, queue);
+//     free(a_dev, queue);
+//     return dst;
+// }
 
 int main(int argc, char* argv[])
 {
@@ -67,7 +67,8 @@ int main(int argc, char* argv[])
     for (int i = 0; i < 10000; i++) {
         a.push_back(i);
         b.push_back(i);
-        expected.push_back((i+i)/4.f);
+        expected.push_back(i+i);
+        // expected.push_back((i+i)/4.f);
     }
     auto result = vec_add(a, b, queue);
     // result = vec_div_4(result, queue);

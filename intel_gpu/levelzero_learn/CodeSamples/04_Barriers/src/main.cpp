@@ -15,6 +15,66 @@ Range-based Memory barriers:
 
 #define NS_IN_SEC 1000000000LL
 
+bool kernel_spir(ze_device_handle_t hDevice, ze_context_handle_t hContext, ze_kernel_handle_t& hKernel) {
+	std::cout << "== Start read SPIR-V kernel." << std::endl;
+
+	// ============================================
+	// Create kernel from IL(SPIR)
+	// Refer: https://www.intel.com/content/www/us/en/developer/articles/technical/using-oneapi-level-zero-interface.html
+	// https://github.com/intel/compute-runtime/blob/master/level_zero/core/test/black_box_tests/zello_world_gpu.cpp
+
+	ze_module_handle_t hModule;	
+	const char* fn = "../../../sycl_learn/CodeSamples/build/sycl_spir64.spv";
+	auto spirBinFile = CKernelBinFile::createPtr(fn);
+	const ze_module_constants_t* pConstants = nullptr;
+	ze_module_desc_t moduleDesc = {ZE_STRUCTURE_TYPE_MODULE_DESC};
+	ze_module_build_log_handle_t buildlog;
+	moduleDesc.pNext = nullptr;
+	moduleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
+	moduleDesc.pInputModule = spirBinFile->_pbuf;
+	moduleDesc.inputSize = spirBinFile->_fileSize;
+	moduleDesc.pBuildFlags = "";
+	std::cout << "  == Start create module." << std::endl;
+	auto r = zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, &buildlog);
+	if (r != ZE_RESULT_SUCCESS) {
+		size_t szLog = 0;
+		r = zeModuleBuildLogGetString(buildlog, &szLog, nullptr);
+		std::cout << "  szLog = " << szLog << ", r = " << r << std::endl;
+
+		char *strLog = (char *)malloc(szLog);
+		r = zeModuleBuildLogGetString(buildlog, &szLog, strLog);
+		std::cout << "  == strLog=" << strLog << ", r=" << r << std::endl;
+
+		free(strLog);
+		// SUCCESS_OR_TERMINATE(zeModuleBuildLogDestroy(buildlog));
+		return false;
+	}
+
+	std::cout << "  == Start create kernel." << std::endl;
+	ze_kernel_desc_t kernelDesc = {ZE_STRUCTURE_TYPE_KERNEL_DESC};
+	// Note: find kernel name based on OpEntryPoint, open spv file and check via https://www.khronos.org/spir/visualizer/
+	kernelDesc.pKernelName = "_ZTSN4sycl3_V16detail18RoundedRangeKernelINS0_4itemILi1ELb1EEELi1EZ7vec_addRSt6vectorIfSaIfEES8_RNS0_5queueEEUlNS0_2idILi1EEEE_EE";
+	
+	r = zeKernelCreate(hModule, &kernelDesc, &hKernel);
+	if (r != ZE_RESULT_SUCCESS) {
+		std::cout << "    r = " << std::hex << r << std::dec << (r == 0x78000011 ? " ERROR_INVALID_KERNEL_NAME" : "") << std::endl;
+		size_t szLog = 0;
+		r = zeModuleBuildLogGetString(buildlog, &szLog, nullptr);
+		std::cout << "    szLog = " << szLog << ", r = " << r << std::endl;
+
+		char *strLog = (char *)malloc(szLog);
+		r = zeModuleBuildLogGetString(buildlog, &szLog, strLog);
+		std::cout << "    strLog=" << strLog << ", r=" << r << std::endl;
+
+		free(strLog);
+		SUCCESS_OR_TERMINATE(zeModuleBuildLogDestroy(buildlog));
+		return false;
+	}
+
+	zeModuleBuildLogDestroy(buildlog);
+	return true;
+}
+
 int main()
 {
 	ze_driver_handle_t hDriver = nullptr;
@@ -78,66 +138,42 @@ int main()
 	CHECK_RET(r)
 	std::cout << "Alloc device memory: tsResult = " << tsResult << std::endl;
 
-	// ============================================
-	// Create kernel from IL(SPIR)
-	// Refer: https://www.intel.com/content/www/us/en/developer/articles/technical/using-oneapi-level-zero-interface.html
-	// https://github.com/intel/compute-runtime/blob/master/level_zero/core/test/black_box_tests/zello_world_gpu.cpp
-
 	// input params:
-	size_t vec_sz = 10000u;
-	std::vector<float> vec_a(vec_sz), vec_b(vec_sz);
-	for (size_t i = 0; i < vec_sz; i++) {
-		vec_a[i] = i;
-		vec_b[i] = i;
-	}
+	auto allocSize = 1;
+	void *buffer_A = nullptr;
+	void *buffer_B = nullptr;
+	void *buffer_C = nullptr;
+	ze_device_mem_alloc_desc_t deviceDesc = {ZE_STRUCTURE_TYPE_DEVICE_MEM_ALLOC_DESC};
+    deviceDesc.flags = ZE_DEVICE_MEM_ALLOC_FLAG_BIAS_UNCACHED;
+    deviceDesc.ordinal = 0;
+	ze_host_mem_alloc_desc_t hostDesc = {ZE_STRUCTURE_TYPE_HOST_MEM_ALLOC_DESC};
+    hostDesc.flags = ZE_HOST_MEM_ALLOC_FLAG_BIAS_UNCACHED;
+    SUCCESS_OR_TERMINATE(zeMemAllocShared(hContext, &deviceDesc, &hostDesc, allocSize * sizeof(int), 1, hDevice, &buffer_A));
+    SUCCESS_OR_TERMINATE(zeMemAllocShared(hContext, &deviceDesc, &hostDesc, allocSize * sizeof(int), 1, hDevice, &buffer_B));
+	SUCCESS_OR_TERMINATE(zeMemAllocShared(hContext, &deviceDesc, &hostDesc, allocSize * sizeof(int), 1, hDevice, &buffer_C));
 
-	ze_module_handle_t hModule;	
-	const char* fn = "../../../sycl_learn/CodeSamples/build/sycl_spir64.spv";
-	auto spirBinFile = CKernelBinFile::createPtr(fn);
-	const ze_module_constants_t* pConstants = nullptr;
-	ze_module_desc_t moduleDesc = {ZE_STRUCTURE_TYPE_MODULE_DESC};
-	ze_module_build_log_handle_t buildlog;
-	moduleDesc.format = ZE_MODULE_FORMAT_IL_SPIRV;
-	moduleDesc.pInputModule = spirBinFile->_pbuf;
-	moduleDesc.inputSize = spirBinFile->_fileSize;
-	moduleDesc.pBuildFlags = "";
-	r = zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, &buildlog);
-	if (r != ZE_RESULT_SUCCESS) {
-		size_t szLog = 0;
-		zeModuleBuildLogGetString(buildlog, &szLog, nullptr);
-
-		char *strLog = (char *)malloc(szLog);
-		zeModuleBuildLogGetString(buildlog, &szLog, strLog);
-		std::cout << "== Fail: " << strLog << std::endl;
-
-		free(strLog);
-		// SUCCESS_OR_TERMINATE(zeModuleBuildLogDestroy(buildlog));
-		std::cerr << "\nZello World Gpu Results validation FAILED. Module creation error."
-					<< std::endl;
-		return 0;
+	for (size_t i = 0; i < allocSize; i++) {
+		((float*)buffer_A)[i] = i;
+		((float*)buffer_B)[i] = i;
 	}
 
 	ze_kernel_handle_t hKernel;
-	ze_kernel_desc_t kernelDesc = {ZE_STRUCTURE_TYPE_KERNEL_DESC};
-	kernelDesc.pKernelName = "vec_add";
-	SUCCESS_OR_TERMINATE(zeKernelCreate(hModule, &kernelDesc, &hKernel));
+	kernel_spir(hDevice, hContext, hKernel);
 
 	uint32_t groupSizeX = 32u;
 	uint32_t groupSizeY = 1u;
 	uint32_t groupSizeZ = 1u;
-	SUCCESS_OR_TERMINATE(zeKernelSuggestGroupSize(hKernel, vec_sz, 1U, 1U, &groupSizeX, &groupSizeY, &groupSizeZ));
+	SUCCESS_OR_TERMINATE(zeKernelSuggestGroupSize(hKernel, allocSize, 1U, 1U, &groupSizeX, &groupSizeY, &groupSizeZ));
 	std::cout << "== suggest group: x=" << groupSizeX << ", y=" << groupSizeY << ", z=" << groupSizeZ << std::endl;
 	SUCCESS_OR_TERMINATE(zeKernelSetGroupSize(hKernel, groupSizeX, groupSizeY, groupSizeZ));
 
 	uint32_t offset = 0;
-	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 1, sizeof(dstBuffer), &dstBuffer));
-	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 0, sizeof(srcBuffer), &srcBuffer));
-	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 2, sizeof(uint32_t), &offset));
-	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 3, sizeof(uint32_t), &offset));
-	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 4, sizeof(uint32_t), &offset));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 0, sizeof(float) * allocSize, &buffer_A));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 1, sizeof(float) * allocSize, &buffer_B));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 2, sizeof(float) * allocSize, &buffer_C));
 
 	ze_group_count_t dispatchTraits;
-	dispatchTraits.groupCountX = vec_sz / groupSizeX;
+	dispatchTraits.groupCountX = allocSize / groupSizeX;
 	dispatchTraits.groupCountY = 1u;
 	dispatchTraits.groupCountZ = 1u;
 
@@ -172,9 +208,12 @@ int main()
 		? ( tsResult->context.kernelEnd - tsResult->context.kernelStart ) * timestampFreq
 		: (( timestampMaxValue - tsResult->context.kernelStart) + tsResult->context.kernelEnd + 1 ) * timestampFreq;
 	
+	std::cout << "== Infer result: " << std::endl;
+	for (size_t i = 0; i < 10; i++) {
+		std::cout << "  buffer_C[" << i << "] = " << ((float*)buffer_C)[i] << std::endl;
+	}
 	std::cout << "Done." << std::endl;
 
-	zeModuleBuildLogDestroy(buildlog);
 	return 0;
 }
 

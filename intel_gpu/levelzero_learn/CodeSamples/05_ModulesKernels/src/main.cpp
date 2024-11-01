@@ -10,7 +10,7 @@ Modules:
 	zeModuleCreate performs a compilation step when format is IL.
 */
 
-#define USE_OpenCL_Kernel 0
+#define USE_OpenCL_Kernel 1
 bool opencl_kernel(ze_device_handle_t hDevice, ze_context_handle_t hContext, 
 				   ze_module_handle_t &hModule, ze_kernel_handle_t &hKernel)
 {
@@ -30,6 +30,7 @@ bool opencl_kernel(ze_device_handle_t hDevice, ze_context_handle_t hContext,
 	auto r = zeModuleCreate(hContext, hDevice, &moduleDesc, &hModule, &buildlog);
 	if (r != ZE_RESULT_SUCCESS) {
 		DEBUG_LOG << "  zeModuleCreate fail, return " << std::hex << r << std::dec << std::endl;
+		DEBUG_LOG << "    " << std::hex << r << std::dec << " means: " << ze_rslt_to_str(r) << std::endl;
 		size_t szLog = 0;
 		r = zeModuleBuildLogGetString(buildlog, &szLog, nullptr);
 		DEBUG_LOG << "  get log size: " << szLog << std::endl;
@@ -39,7 +40,7 @@ bool opencl_kernel(ze_device_handle_t hDevice, ze_context_handle_t hContext,
 		DEBUG_LOG << "  error log:" << strLog << std::endl;
 		free(strLog);
 
-		// SUCCESS_OR_TERMINATE(zeModuleBuildLogDestroy(buildlog));
+		SUCCESS_OR_TERMINATE(zeModuleBuildLogDestroy(buildlog));
 		return false;
 	}
 	

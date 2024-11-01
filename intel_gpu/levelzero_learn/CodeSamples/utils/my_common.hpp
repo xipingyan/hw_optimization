@@ -17,16 +17,28 @@
         exit(0);                                                                                                            \
     }
 
+inline std::string ze_rslt_to_str(ze_result_t r) {
+	switch (r)
+	{
+#define CASE(ITM) case ITM: return #ITM
+	CASE(ZE_RESULT_ERROR_MODULE_BUILD_FAILURE);
+	CASE(ZE_RESULT_ERROR_INVALID_ARGUMENT);
+	default:
+		return "";
+	}
+};
+
 #ifndef SUCCESS_OR_TERMINATE
-#define SUCCESS_OR_TERMINATE(fun)                                                                                               \
-    {                                                                                                                           \
-        auto ret_fun = fun;                                                                                                     \
-        if (ret_fun != ZE_RESULT_SUCCESS)                                                                                       \
-        {                                                                                                                       \
-            std::cout << "== Fail: return " << std::hex << ret_fun << std::dec << ", " << __FILE__ << ":" << __LINE__ << std::endl; \
-            exit(0);                                                                                                            \
-        }                                                                                                                       \
-    }
+#define SUCCESS_OR_TERMINATE(fun)                                                                                                       \
+	{                                                                                                                                   \
+		auto ret_fun = fun;                                                                                                             \
+		if (ret_fun != ZE_RESULT_SUCCESS)                                                                                               \
+		{                                                                                                                               \
+			std::cout << "== Fail: return " << std::hex << ret_fun << std::dec << ", " << __FILE__ << ":" << __LINE__ << std::endl;     \
+			std::cout << "   " << std::hex << ret_fun << std::dec << " means: " << ze_rslt_to_str(ret_fun) << std::endl; \
+			exit(0);                                                                                                                    \
+		}                                                                                                                               \
+	}
 #endif
 
 class CKernelBinFile
