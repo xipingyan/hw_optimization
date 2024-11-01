@@ -20,3 +20,16 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
     mkdir build && cd build
     cmake -DCMAKE_CXX_COMPILER=icpx ..      # Sycl need to use icpx (intel compiler)
     SYCL_DUMP_IMAGES=1  ./01_HelloSycl/01_HelloSycl
+
+#### Parse spv
+
+``1`` SPIRV-ToolsS
+
+    cd hw_optimization/intel_gpu/
+    git clone https://github.com/KhronosGroup/SPIRV-Tools
+    python3 utils/git-sync-deps
+    mkdir build && cd build
+    cmake .. && make -j20
+    ../../../SPIRV-Tools/build/tools/spirv-dis ./sycl_spir64.spv --comment > dump.txt
+
+``2`` Visulizer online: https://www.khronos.org/spir/visualizer/

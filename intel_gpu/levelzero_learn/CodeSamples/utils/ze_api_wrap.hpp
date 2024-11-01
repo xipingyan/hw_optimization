@@ -39,6 +39,7 @@ inline bool get_device(ze_driver_handle_t& hDriver, ze_device_handle_t& hDevice)
 			if(ZE_DEVICE_TYPE_GPU == device_properties.type) {
 				hDriver = allDrivers[i];
 				hDevice = allDevices[d];
+				std::cout << "== Got device: " << device_properties.name << std::endl;
 				break;
 			}
 		}

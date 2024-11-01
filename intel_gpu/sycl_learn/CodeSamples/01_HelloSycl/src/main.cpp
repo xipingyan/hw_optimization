@@ -20,7 +20,8 @@ std::vector<float> vec_add(std::vector<float>& a, std::vector<float>& b, sycl::q
     queue.parallel_for(sycl::range<1>(n_items), [items, a_dev, b_dev] (sycl::id<1> i) {
         float x1 = a_dev[i];
         float x2 = b_dev[i];
-        items[i] = roundf(x1+x2);
+        // items[i] = roundf(x1+x2);
+        items[i] = x1 + x2;
     }).wait();
 
     for (size_t i = 0; i < a.size(); i++) {
@@ -69,7 +70,7 @@ int main(int argc, char* argv[])
         expected.push_back((i+i)/4.f);
     }
     auto result = vec_add(a, b, queue);
-    result = vec_div_4(result, queue);
+    // result = vec_div_4(result, queue);
 
     bool result_is_expected = true;
     for (int i = 0; i < 10000; i++) {

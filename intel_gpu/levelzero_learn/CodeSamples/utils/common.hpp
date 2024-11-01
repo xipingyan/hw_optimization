@@ -12,3 +12,15 @@
         std::cout << "== Fail: return " << std::hex << RET << std::dec << ", " << __FILE__ << ":" << __LINE__ << std::endl; \
         exit(0);                                                                                                            \
     }
+
+#ifndef SUCCESS_OR_TERMINATE
+#define SUCCESS_OR_TERMINATE(fun)                                                                                               \
+    {                                                                                                                           \
+        auto ret_fun = fun;                                                                                                     \
+        if (ret_fun != ZE_RESULT_SUCCESS)                                                                                       \
+        {                                                                                                                       \
+            std::cout << "== Fail: return " << std::hex << RET << std::dec << ", " << __FILE__ << ":" << __LINE__ << std::endl; \
+            exit(0);                                                                                                            \
+        }                                                                                                                       \
+    }
+#endif
