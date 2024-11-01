@@ -29,11 +29,11 @@
     }
 #endif
 
-class CSpirKernelBinFile
+class CKernelBinFile
 {
 public:
-	// input spv format file.
-	CSpirKernelBinFile(std::string fn) {
+	// input spv/ocl binary file name.
+	CKernelBinFile(std::string fn) {
 		std::ifstream file(fn.c_str(), std::ios::binary);
 		if (file.is_open()) {
 			file.seekg(0, file.end);
@@ -51,12 +51,12 @@ public:
 			std::cout << "== Fail: can't open: " << fn << std::endl;
 		}
 	}
-	CSpirKernelBinFile() = delete;
-	using PTR=std::shared_ptr<CSpirKernelBinFile>;
+	CKernelBinFile() = delete;
+	using PTR=std::shared_ptr<CKernelBinFile>;
 	static PTR createPtr(std::string fn) {
-		return std::make_shared<CSpirKernelBinFile>(fn);
+		return std::make_shared<CKernelBinFile>(fn);
 	}
-	~CSpirKernelBinFile() {
+	~CKernelBinFile() {
 		if (_pbuf) {
 			free(_pbuf);
 			_pbuf = nullptr;

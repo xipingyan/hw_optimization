@@ -93,7 +93,7 @@ int main()
 
 	ze_module_handle_t hModule;	
 	const char* fn = "../../../sycl_learn/CodeSamples/build/sycl_spir64.spv";
-	auto spirBinFile = CSpirKernelBinFile::createPtr(fn);
+	auto spirBinFile = CKernelBinFile::createPtr(fn);
 	const ze_module_constants_t* pConstants = nullptr;
 	ze_module_desc_t moduleDesc = {ZE_STRUCTURE_TYPE_MODULE_DESC};
 	ze_module_build_log_handle_t buildlog;
