@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(PRJ_NAME 04_Barriers)
+set(PRJ_NAME 05_ModulesKernels)
 project(${PRJ_NAME})
 
 include_directories(
