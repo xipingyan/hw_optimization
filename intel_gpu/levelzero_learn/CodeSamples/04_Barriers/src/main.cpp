@@ -1,8 +1,7 @@
 #include <cstring>
-#include <memory>
-#include <fstream> 
+#include <limits>
 
-#include "common.hpp"
+#include "my_common.hpp"
 #include "ze_api_wrap.hpp"
 
 /*
@@ -15,42 +14,6 @@ Range-based Memory barriers:
 */
 
 #define NS_IN_SEC 1000000000LL
-class CSpirKernelBinFile
-{
-public:
-	// input spv format file.
-	CSpirKernelBinFile(std::string fn) {
-		std::ifstream file(fn.c_str(), std::ios::binary);
-		if (file.is_open()) {
-			file.seekg(0, file.end);
-			_fileSize = file.tellg();
-			file.seekg(0, file.beg);
-			_pbuf = (uint8_t*)(malloc(_fileSize));
-			if (!_pbuf) {
-				std::cout << "== Fail: can't malloc, size: " << _fileSize << std::endl;
-				return;
-			}
-			file.read((char*)_pbuf, _fileSize);
-			file.close();
-		}
-		else {
-			std::cout << "== Fail: can't open: " << fn << std::endl;
-		}
-	}
-	CSpirKernelBinFile() = delete;
-	using PTR=std::shared_ptr<CSpirKernelBinFile>;
-	static PTR createPtr(std::string fn) {
-		return std::make_shared<CSpirKernelBinFile>(fn);
-	}
-	~CSpirKernelBinFile() {
-		if (_pbuf) {
-			free(_pbuf);
-			_pbuf = nullptr;
-		}
-	}
-	size_t _fileSize = 0;
-	uint8_t* _pbuf = nullptr;
-};
 
 int main()
 {
@@ -162,16 +125,16 @@ int main()
 	uint32_t groupSizeX = 32u;
 	uint32_t groupSizeY = 1u;
 	uint32_t groupSizeZ = 1u;
-	SUCCESS_OR_TERMINATE(zeKernelSuggestGroupSize(hKernel, allocSize, 1U, 1U, &groupSizeX, &groupSizeY, &groupSizeZ));
+	SUCCESS_OR_TERMINATE(zeKernelSuggestGroupSize(hKernel, vec_sz, 1U, 1U, &groupSizeX, &groupSizeY, &groupSizeZ));
 	std::cout << "== suggest group: x=" << groupSizeX << ", y=" << groupSizeY << ", z=" << groupSizeZ << std::endl;
 	SUCCESS_OR_TERMINATE(zeKernelSetGroupSize(hKernel, groupSizeX, groupSizeY, groupSizeZ));
 
 	uint32_t offset = 0;
-	SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 1, sizeof(dstBuffer), &dstBuffer));
-	SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 0, sizeof(srcBuffer), &srcBuffer));
-	SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 2, sizeof(uint32_t), &offset));
-	SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 3, sizeof(uint32_t), &offset));
-	SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 4, sizeof(uint32_t), &offset));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 1, sizeof(dstBuffer), &dstBuffer));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 0, sizeof(srcBuffer), &srcBuffer));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 2, sizeof(uint32_t), &offset));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 3, sizeof(uint32_t), &offset));
+	// SUCCESS_OR_TERMINATE(zeKernelSetArgumentValue(hKernel, 4, sizeof(uint32_t), &offset));
 
 	ze_group_count_t dispatchTraits;
 	dispatchTraits.groupCountX = vec_sz / groupSizeX;

@@ -15,3 +15,9 @@ Download OpenCL [SDK](https://github.com/KhronosGroup/OpenCL-SDK/releases) and d
 
 #### Linux
 
+OpenCL is warperred into oneAPI.
+
+    cd opencl_learn/CodeSamples
+    source /opt/intel/oneapi/setvars.sh
+    mkdir build && cd build
+    cmake ..

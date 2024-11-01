@@ -2,7 +2,7 @@
 #include <cstring>
 #include <level_zero/ze_api.h>
 
-#include "common.hpp"
+#include "my_common.hpp"
 #include "ze_api_wrap.hpp"
 
 /*

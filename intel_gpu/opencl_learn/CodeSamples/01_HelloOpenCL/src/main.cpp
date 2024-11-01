@@ -87,12 +87,15 @@ int main() {
 	}
 
 	std::cout << "== Start compare result with expected.\n";
+	bool is_expected = true;
 	for (int i = 0; i < 10; i++) {
 		if (expected[i] != C[i]) {
 			std::cout << "Index: " << i << " Result " << C[i] << "!=" << " Expected " << expected[i] << std::endl;
+			is_expected = false;
 		}
 	}
 
+	std::cout << "== Result is_expected = " << is_expected << std::endl;
 	std::cout << "== Done." << std::endl;
 	return 0;
 }

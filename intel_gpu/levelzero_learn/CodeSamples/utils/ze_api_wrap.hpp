@@ -1,8 +1,8 @@
 #pragma once
 
-#include "log.hpp"
+#include "my_log.hpp"
 #include "level_zero/ze_api.h"
-#include "common.hpp"
+#include "my_common.hpp"
 
 inline bool get_device(ze_driver_handle_t& hDriver, ze_device_handle_t& hDevice) {
 	// Initialize the driver
