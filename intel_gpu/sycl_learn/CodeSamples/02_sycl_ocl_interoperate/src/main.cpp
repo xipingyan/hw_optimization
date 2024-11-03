@@ -10,7 +10,7 @@
 #include <CL/sycl.hpp>
 
 // OpenCL Kernel
-auto add_ocl_kernel(cl_context ocl_ctx, cl_device_id ocl_dev, sycl::context ctx, sycl::buffer<int, 1>& buffer, size_t size, sycl::queue& q) {
+auto add_ocl_kernel_add_1(cl_context ocl_ctx, cl_device_id ocl_dev, sycl::context ctx, sycl::buffer<int, 1>& buffer, size_t size, sycl::queue& q) {
     cl_int err = CL_SUCCESS;
 
     const char *kernelSource =
@@ -41,6 +41,20 @@ auto sycl_kerenel_mul2(sycl::buffer<int, 1> &buffer, size_t sz, sycl::queue &que
         auto outAcc = buffer.get_access<sycl::access::mode::write>(cgh);
         cgh.parallel_for(sycl::range<1>(sz), [=](sycl::id<1> index)
                                        { outAcc[index] = outAcc[index] * 2; }); });
+}
+
+// Sycl Kernel
+auto sycl_kerenel_add_2(sycl::buffer<int, 1> &buffer, size_t sz, sycl::queue &queue)
+{
+    return queue.submit([&](sycl::handler &cgh)
+                        {
+        auto outAcc = buffer.get_access<sycl::access::mode::write>(cgh);
+        cgh.parallel_for(sycl::range<1>(sz), [=](sycl::id<1> index)
+                                       { outAcc[index] = outAcc[index] + 2; 
+                                         float v = 0;
+                                         for(uint i=0;i<1000000;i++){
+                                             v = sin(i) + v;
+                                         }}); });
 }
 
 int main()
@@ -74,14 +88,20 @@ int main()
     cl_mem ocl_buf = clCreateBuffer(ocl_ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, size * sizeof(int), &data[0], &err);
     sycl::buffer<int, 1> buffer = sycl::make_buffer<sycl::backend::opencl, int>(ocl_buf, ctx);
 
-    auto event1 = add_ocl_kernel(ocl_ctx, ocl_dev, ctx, buffer, size, q);
+    auto event1 = sycl_kerenel_add_2(buffer, size, q);
+
     auto event2 = sycl_kerenel_mul2(buffer, size, q);
 
+    auto event3 = add_ocl_kernel_add_1(ocl_ctx, ocl_dev, ctx, buffer, size, q);
+
+    // Test found: don't need to sync here.
+    // event1.wait();
+    // event2.wait();
     clEnqueueReadBuffer(ocl_queue, ocl_buf, CL_TRUE, 0, size * sizeof(int), &data[0], 0, NULL, NULL);
 
     for (int i = 0; i < size; i++)
     {
-        if (data[i] != (i + 1) * 2)
+        if (data[i] != (i + 2) * 2 + 1)
         {
             std::cout << "Results did not validate at index " << i << "!\n";
             return -1;
