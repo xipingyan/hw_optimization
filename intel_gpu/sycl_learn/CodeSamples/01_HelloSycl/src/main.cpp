@@ -57,7 +57,7 @@ std::vector<float> vec_add(std::vector<float>& a, std::vector<float>& b, sycl::q
 
 int main(int argc, char* argv[])
 {
-    sycl::queue queue{sycl::gpu_selector_v};
+    sycl::queue queue{sycl::default_selector_v};
     // sycl::queue queue;
     std::cout << "Using "
               << queue.get_device().get_info<sycl::info::device::name>()
