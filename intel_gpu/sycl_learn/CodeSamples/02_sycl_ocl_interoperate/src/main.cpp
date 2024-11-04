@@ -81,8 +81,9 @@ int main()
     cl_command_queue ocl_queue = clCreateCommandQueueWithProperties(ocl_ctx, ocl_dev, 0, &err);
     sycl::queue q = sycl::make_queue<sycl::backend::opencl>(ocl_queue, ctx);
 
-    std::cout << "Using "
+    std::cout << "Using device: "
               << q.get_device().get_info<sycl::info::device::name>()
+              << ", Backend: " << q.get_backend()
               << std::endl;
 
     cl_mem ocl_buf = clCreateBuffer(ocl_ctx, CL_MEM_READ_WRITE | CL_MEM_COPY_HOST_PTR, size * sizeof(int), &data[0], &err);

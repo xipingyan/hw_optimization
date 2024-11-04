@@ -70,6 +70,7 @@ int main(int argc, char *argv[])
     // sycl::queue queue;
     std::cout << "Using "
               << queue.get_device().get_info<sycl::info::device::name>()
+              << ", Backend: " << queue.get_backend()
               << std::endl;
 
     std::vector<float> a, b, expected;

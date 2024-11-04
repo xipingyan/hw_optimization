@@ -17,6 +17,8 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
     1(``Study in progress``): https://www.intel.com/content/www/us/en/developer/articles/training/programming-data-parallel-c.html
     2: https://developer.codeplay.com/products/computecpp/ce/2.11.0/guides/sycl-guide/hello-sycl
     3: (in-order or out-of-order) https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2023-0/executing-multiple-kernels-on-the-device-at-the.html
+    4: Architecture: https://www.intel.com/content/www/us/en/developer/articles/technical/introduction-to-the-xe-hpg-architecture.html
+    4.1 https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2024-2/intel-xe-gpu-architecture.html
 
 # Build Samples and Run
 
