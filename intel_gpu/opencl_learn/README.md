@@ -2,6 +2,8 @@
 
 OpenCL: [Guide](https://github.com/KhronosGroup/OpenCL-Guide).
 
+[Optimising OpenCL kernels](https://www.youtube.com/watch?v=OvIrX5XBX8E).
+
 # Build Samples and Run
 
 #### Windows (git bash)
