@@ -1,9 +1,22 @@
 # Sycl (DPC++)
 
-SYCL: Download [DPC++ compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler-download.html) and Install.
+SYCL: Download [DPC++ compiler](https://www.intel.com/content/www/us/en/developer/tools/oneapi/dpc-compiler-download.html) and Install. <br>
 
-Github: https://github.com/oneapi-src/level-zero
-DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get-started-guide/2025-0/overview.html
+Github: https://github.com/oneapi-src/level-zero <br>
+DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get-started-guide/2025-0/overview.html <br>
+
+``Keynotes:`` <br>
+
+    1: SYCL is definitely modern C++(cpp11, cpp17)
+    2: OpenMP 5.0 provides same feature as SYCL and DPC++, but it is based on C/Fortan/premodern CPP.
+    3: SYCL is derived from OpenCL technology, and the run models are similar. 
+
+
+``Programming guide``: <br>
+
+    1(``Study in progress``): https://www.intel.com/content/www/us/en/developer/articles/training/programming-data-parallel-c.html
+    2: https://developer.codeplay.com/products/computecpp/ce/2.11.0/guides/sycl-guide/hello-sycl
+    3: (in-order or out-of-order) https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2023-0/executing-multiple-kernels-on-the-device-at-the.html
 
 # Build Samples and Run
 
@@ -11,7 +24,7 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
 
     cmake -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icx -G"Visual Studio 16" ..
 
-#### Linux
+#### Linux (Dump SPIR-V)
 
 ``Linux``: Add current user to render and video group: ``sudo usermod -a -G render xiping``
 
@@ -21,7 +34,7 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
     cmake -DCMAKE_CXX_COMPILER=icpx ..      # Sycl need to use icpx (intel compiler)
     SYCL_DUMP_IMAGES=1  ./01_HelloSycl/01_HelloSycl
 
-#### Parse spv
+#### Parse spv file(SPIR-V format)
 
 ``1`` SPIRV-ToolsS
 

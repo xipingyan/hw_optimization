@@ -5,27 +5,34 @@
 #include <sycl/sycl.hpp>
 #include <cmath>
 
-std::vector<float> vec_add(std::vector<float>& a, std::vector<float>& b, sycl::queue& queue) {
+std::vector<float> vec_add(std::vector<float> &a, std::vector<float> &b, sycl::queue &queue)
+{
     std::vector<float> sum(a.size());
     // Compute the first n_items values in a well known sequence
     size_t n_items = a.size();
     float *items = sycl::malloc_shared<float>(n_items, queue);
     float *a_dev = sycl::malloc_shared<float>(n_items, queue);
     float *b_dev = sycl::malloc_shared<float>(n_items, queue);
-    for (size_t i = 0; i < a.size(); i++) {
+    for (size_t i = 0; i < a.size(); i++)
+    {
         a_dev[i] = a[i];
         b_dev[i] = b[i];
     }
 
-    queue.parallel_for(sycl::range<1>(n_items), [items, a_dev, b_dev] (sycl::id<1> i) {
+    // sycl::range and sycl::id, They are both 1-dim here.
+    // class kenerl_name: specific kernel name. This is just a way to name the kernel
+    // SYCL ranges and IDs can be one-, two-, or three-dimensional. (The OpenCL technology and CUDA* have the same limitation.)
+    queue.parallel_for<class kenerl_name>(sycl::range<1>(n_items), [items, a_dev, b_dev](sycl::id<1> i)
+                                          {
         float x1 = a_dev[i];
         float x2 = b_dev[i];
         // items[i] = roundf(x1+x2);
-        items[i] = x1 + x2;
-    }).wait();
+        items[i] = x1 + x2; })
+        .wait();
 
-    for (size_t i = 0; i < a.size(); i++) {
-            sum[i] = items[i];
+    for (size_t i = 0; i < a.size(); i++)
+    {
+        sum[i] = items[i];
     }
     free(items, queue);
     free(a_dev, queue);
@@ -55,28 +62,33 @@ std::vector<float> vec_add(std::vector<float>& a, std::vector<float>& b, sycl::q
 //     return dst;
 // }
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    sycl::queue queue{sycl::default_selector_v};
+    // sycl::queue queue{sycl::default_selector_v};
+    sycl::queue queue{sycl::gpu_selector_v};
+
     // sycl::queue queue;
     std::cout << "Using "
               << queue.get_device().get_info<sycl::info::device::name>()
               << std::endl;
 
     std::vector<float> a, b, expected;
-    for (int i = 0; i < 10000; i++) {
+    for (int i = 0; i < 10000; i++)
+    {
         a.push_back(i);
         b.push_back(i);
-        expected.push_back(i+i);
+        expected.push_back(i + i);
         // expected.push_back((i+i)/4.f);
     }
     auto result = vec_add(a, b, queue);
     // result = vec_div_4(result, queue);
 
     bool result_is_expected = true;
-    for (int i = 0; i < 10000; i++) {
-        if (fabs(expected[i] - result[i]) > 0.0001f) {
-            std::cout << "== Result [" << i << "] diff: " << fabs(expected[i] - result[i]) << ", result=" << result[i] <<  std::endl;
+    for (int i = 0; i < 10000; i++)
+    {
+        if (fabs(expected[i] - result[i]) > 0.0001f)
+        {
+            std::cout << "== Result [" << i << "] diff: " << fabs(expected[i] - result[i]) << ", result=" << result[i] << std::endl;
             result_is_expected = false;
         }
     }
