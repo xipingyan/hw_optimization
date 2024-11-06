@@ -6,11 +6,11 @@ else()
 	cmake_minimum_required(VERSION 3.23.5)
 endif()
 
-set(PRJ_NAME 02_sycl_ocl_interoperate)
+set(PRJ_NAME 04_USM_TerseSyntax)
 project(${PRJ_NAME})
 
 find_package(IntelSYCL REQUIRED)
-find_package(OpenCL REQUIRED)
+#set(CMAKE_CXX_COMPILER dpcpp)
 
 include_directories(
 	${Utils}
@@ -24,4 +24,3 @@ add_executable(${PRJ_NAME}
 )
 
 add_sycl_to_target(TARGET ${PRJ_NAME}  SOURCES ${SRC} )
-target_link_libraries(${PRJ_NAME} PRIVATE OpenCL::OpenCL)
