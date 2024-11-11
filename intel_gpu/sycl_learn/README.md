@@ -14,11 +14,14 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
 
 ``Programming guide``: <br>
 
-    1(``Study in progress``): https://www.intel.com/content/www/us/en/developer/articles/training/programming-data-parallel-c.html
-    2: https://developer.codeplay.com/products/computecpp/ce/2.11.0/guides/sycl-guide/hello-sycl
+    0: https://link.springer.com/book/10.1007/978-1-4842-5574-2 [pdf e-book]
+    1: https://www.intel.com/content/www/us/en/developer/articles/training/programming-data-parallel-c.html [Done]
+    2: https://developer.codeplay.com/products/computecpp/ce/2.11.0/guides/sycl-guide/hello-sycl 
     3: (in-order or out-of-order) https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2023-0/executing-multiple-kernels-on-the-device-at-the.html
     4: Architecture: https://www.intel.com/content/www/us/en/developer/articles/technical/introduction-to-the-xe-hpg-architecture.html
     4.1 https://www.intel.com/content/www/us/en/docs/oneapi/optimization-guide-gpu/2024-2/intel-xe-gpu-architecture.html
+    
+    5: https://github.com/intel/llvm-test-suite/blob/intel/SYCL [All Sycl grammar test?]
 
 # Build Samples and Run
 
