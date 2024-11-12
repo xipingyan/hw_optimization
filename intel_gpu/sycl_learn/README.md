@@ -51,3 +51,26 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
     ../../../SPIRV-Tools/build/tools/spirv-dis ./sycl_spir64.spv --comment > dump.txt
 
 ``2`` Visulizer online: https://www.khronos.org/spir/visualizer/
+
+# Tools
+
+Use profiling tools to understand performance of kernels
+
+    • GPU Analysis with Vtune™ Profiler
+    • Intel® Advisor GPU Analysis
+    • Tools inside PTI-GPU - https://github.com/intel/pti-gpu
+        • onetrace - host and device tracing tool for OpenCL(TM) and Level Zero backends with support of DPC++ (both for CPU and
+        GPU) and OpenMP* GPU offload;
+        • oneprof - GPU HW metrics collection tool for OpenCL(TM) and Level Zero backends with support of DPC++ and OpenMP* GPU
+        offload;
+        • ze_tracer - "Swiss army knife" for Level Zero API call tracing and profiling (former ze_intercept);
+        • gpuinfo - provides basic information about the GPUs installed in a system, and the list of HW metrics one can collect for it;
+        • sysmon - Linux "top" like utility to monitor GPUs installed on a system;
+
+#### onetrace
+
+    build onetrace: refer ../pti_gpu_tool_learn/README.md
+
+How to use?
+
+

@@ -6,6 +6,25 @@
 // Work-group: Parts of ND-Range
 // ND-Range  : 3 dim's Tensor.
 
+// CUDA vs SYCL
+// thread == work-item
+// warp == sub-group
+// block == work-group
+// grid == ND-range
+
+// CUDA contains built-in variables to support threads:
+// Thread ID: threadIdx.x/y/z
+// Block ID: blockIdx.x/y/z
+// Block dimensions: blockDim.x/y/z
+// Grid dimensions: gridDim.x/y/z
+
+// SYCL contains equivalent built-in variables:
+// Thread ID: sycl::nd_item.get_local_id(0/1/2)
+// Work-group ID: sycl::nd_item.get_group(0/1/2)
+// Work-group dimensions: sycl::nd_item.get_local_range().get(0/1/2)
+// ND-range dimensions: sycl::nd_item.get_group_range(0/1/2)
+// Refer:https://www.intel.com/content/www/us/en/docs/dpcpp-compatibility-tool/developer-guide-reference/2023-2/cuda-and-sycl-programming-model-comparison.html
+
 // sycl::nd_range, params:
 // globalSize :
 // localSize  :
@@ -66,9 +85,16 @@ int main(int argc, char *argv[])
                             auto j = it.get_global_id(1);
                             auto g_linear_id = it.get_global_linear_id();
                             auto local_id = it.get_local_id();
+                            auto l_linear_id = it.get_local_linear_id();
                             auto nd = it.get_nd_range();
 
-                            out << "i, j = " << i << ", " << j << ", id(i*N+j) = " << i * N + j << ", g_linear_id=" << g_linear_id << ", local_id=" << local_id << ",nd=" << nd << sycl::endl;
+                            out << "i, j = " << i << ", " << j << ", id(i*N+j) = " << i * N + j
+                                << ", g_linear_id=" << g_linear_id
+                                << ", local_id=" << local_id << ", local_linear_id=" << l_linear_id << sycl::endl;
+                            if (g_linear_id == 0)
+                            {
+                                out << "nd = " << nd << sycl::endl;
+                            }
 
                             for (auto k = 0; k < N; ++k)
                             {
