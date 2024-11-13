@@ -88,6 +88,7 @@ int main()
 	std::string kernel_code =
 		"   void kernel simple_add(global const int* A, global const int* B, global int* C){       "
 		"       C[get_global_id(0)]=A[get_global_id(0)]+B[get_global_id(0)];                 "
+		"		printf(\"== kernel insdie: golbal_id=%zu \\n \", get_global_id(0));	"
 		"   }                                                                               ";
 
 	std::cout << "== Put kernel string to source." << std::endl;

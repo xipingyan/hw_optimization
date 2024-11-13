@@ -51,118 +51,9 @@ namespace
 
 } // namespace
 
-static sycl::device getDefaultDevice()
-{
-    static sycl::device syclDevice;
-    static bool isDeviceInitialised = false;
-    if (!isDeviceInitialised)
-    {
-        auto platformList = sycl::platform::get_platforms();
-        for (const auto &platform : platformList)
-        {
-            auto platformName = platform.get_info<sycl::info::platform::name>();
-            bool isLevelZero = platformName.find("Level-Zero") != std::string::npos;
-            if (!isLevelZero)
-                continue;
-
-            syclDevice = platform.get_devices()[0];
-            isDeviceInitialised = true;
-            return syclDevice;
-        }
-        throw std::runtime_error("getDefaultDevice failed");
-    }
-    else
-        return syclDevice;
-}
-
-static sycl::context getDefaultContext()
-{
-    static sycl::context syclContext{getDefaultDevice()};
-    return syclContext;
-}
-
-static void *allocDeviceMemory(sycl::queue *queue, size_t size, bool isShared)
-{
-    void *memPtr = nullptr;
-    if (isShared)
-    {
-        memPtr = sycl::aligned_alloc_shared(64, size, getDefaultDevice(),
-                                            getDefaultContext());
-    }
-    else
-    {
-        memPtr = sycl::aligned_alloc_device(64, size, getDefaultDevice(),
-                                            getDefaultContext());
-    }
-    if (memPtr == nullptr)
-    {
-        throw std::runtime_error("mem allocation failed!");
-    }
-    return memPtr;
-}
-static void deallocDeviceMemory(sycl::queue *queue, void *ptr)
-{
-    sycl::free(ptr, *queue);
-}
-
-static ze_module_handle_t loadModule(const void *data, size_t dataSize)
-{
-    assert(data);
-    ze_module_handle_t zeModule;
-    ze_module_desc_t desc = {ZE_STRUCTURE_TYPE_MODULE_DESC,
-                             nullptr,
-                             ZE_MODULE_FORMAT_IL_SPIRV,
-                             dataSize,
-                             (const uint8_t *)data,
-                             nullptr,
-                             nullptr};
-    auto zeDevice = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
-        getDefaultDevice());
-    auto zeContext = sycl::get_native<sycl::backend::ext_oneapi_level_zero>(
-        getDefaultContext());
-    L0_SAFE_CALL(zeModuleCreate(zeContext, zeDevice, &desc, &zeModule, nullptr));
-    return zeModule;
-}
-
-static sycl::kernel *getKernel(ze_module_handle_t zeModule, const char *name)
-{
-    assert(zeModule);
-    assert(name);
-    ze_kernel_handle_t zeKernel;
-    ze_kernel_desc_t desc = {};
-    desc.pKernelName = name;
-
-    L0_SAFE_CALL(zeKernelCreate(zeModule, &desc, &zeKernel));
-    sycl::kernel_bundle<sycl::bundle_state::executable> kernelBundle =
-        sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
-                                 sycl::bundle_state::executable>(
-            {zeModule}, getDefaultContext());
-
-    auto kernel = sycl::make_kernel<sycl::backend::ext_oneapi_level_zero>(
-        {kernelBundle, zeKernel}, getDefaultContext());
-    return new sycl::kernel(kernel);
-}
-
-static void launchKernel(sycl::queue *queue, sycl::kernel *kernel, size_t gridX,
-                         size_t gridY, size_t gridZ, size_t blockX,
-                         size_t blockY, size_t blockZ, size_t sharedMemBytes,
-                         void **params, size_t paramsCount)
-{
-    auto syclGlobalRange =
-        sycl::range<3>(blockZ * gridZ, blockY * gridY, blockX * gridX);
-    auto syclLocalRange = sycl::range<3>(blockZ, blockY, blockX);
-    sycl::nd_range<3> syclNdRange(syclGlobalRange, syclLocalRange);
-
-    queue->submit([&](sycl::handler &cgh)
-                  {
-     for (size_t i = 0; i < paramsCount; i++) {
-       cgh.set_arg(static_cast<uint32_t>(i), *(static_cast<void **>(params[i])));
-     }
-     cgh.parallel_for(syclNdRange, *kernel); });
-}
-
 ze_module_handle_t myLoadModule(sycl::context ctxt, sycl::device device, const void *data, size_t dataSize)
 {
+    std::cout << "  == Start to load module(levelzero)" << std::endl;
     assert(data);
     ze_module_handle_t zeModule;
     ze_module_desc_t desc = {ZE_STRUCTURE_TYPE_MODULE_DESC,
@@ -180,36 +71,106 @@ ze_module_handle_t myLoadModule(sycl::context ctxt, sycl::device device, const v
     return zeModule;
 }
 
+sycl::kernel *myGetKernel(sycl::context ctxt, ze_module_handle_t zeModule, const char *name)
+{
+    std::cout << "  == Start to make kernel based on zeModule." << std::endl;
+    assert(zeModule);
+    assert(name);
+    ze_kernel_handle_t zeKernel;
+    ze_kernel_desc_t desc = {};
+    desc.pKernelName = name;
+
+    L0_SAFE_CALL(zeKernelCreate(zeModule, &desc, &zeKernel));
+    sycl::kernel_bundle<sycl::bundle_state::executable> kernelBundle =
+        sycl::make_kernel_bundle<sycl::backend::ext_oneapi_level_zero,
+                                 sycl::bundle_state::executable>(
+            {zeModule}, ctxt);
+
+    auto kernel = sycl::make_kernel<sycl::backend::ext_oneapi_level_zero>(
+        {kernelBundle, zeKernel}, ctxt);
+
+    // uint32_t groupSizeX = 32u;
+    // uint32_t groupSizeY = 1u;
+    // uint32_t groupSizeZ = 1u;
+    // zeKernelSuggestGroupSize(zeKernel, 100, 1U, 1U, &groupSizeX, &groupSizeY, &groupSizeZ);
+    // std::cout << "== suggest group: x=" << groupSizeX << ", y=" << groupSizeY << ", z=" << groupSizeZ << std::endl;
+    // zeKernelSetGroupSize(zeKernel, groupSizeX, groupSizeY, groupSizeZ);
+
+    return new sycl::kernel(kernel);
+}
+
+void myLaunchKernel(sycl::queue *queue, sycl::kernel *kernel, int element_size,
+                    void **params, size_t paramsCount)
+{
+    std::cout << "  == Start to launch SPIRV kernel(add to sycl::queue)." << std::endl;
+    queue->submit([&](sycl::handler &cgh)
+                  {
+     for (size_t i = 0; i < paramsCount; i++) {
+       cgh.set_arg(static_cast<uint32_t>(i), params[i]);
+     }
+
+    //  cgh.parallel_for(syclNdRange, *kernel); });
+     cgh.parallel_for(sycl::range<1>(element_size), *kernel); });
+}
+
 int main()
 {
+    std::cout << "Start to test call SPIR-V kernel(converted from opencl kernel)." << std::endl;
+
     // Load SPIR-V binary
-    std::ifstream spirv_file("path/to/your/spirv_binary.spv", std::ios::binary);
+    std::string spirv_fn = "../../../opencl_learn/CodeSamples/build/simple_add.spv";
+    std::ifstream spirv_file(spirv_fn, std::ios::binary);
+    if (!spirv_file.is_open())
+    {
+        std::cout << "== Fail: Can't open file: " << spirv_fn << std::endl;
+        return 0;
+    }
     std::vector<char> spirv_binary((std::istreambuf_iterator<char>(spirv_file)), std::istreambuf_iterator<char>());
+    std::cout << "== Readed spirv kernel file: " << spirv_fn << std::endl;
 
     auto queue = sycl::queue(sycl::gpu_selector_v);
-    
+
     // Create SYCL context and queue using Level Zero backend
     auto context = queue.get_context();
     auto device = queue.get_device();
 
-    auto module = myLoadModule(context, device, nullptr, 20);
-    // cl::sycl::context
-    // sycl::ext::oneapi::level_zero::
-    // cl::sycl::context sc = Q.get_context();
+    auto module = myLoadModule(context, device, spirv_binary.data(), spirv_binary.size());
+    auto kernel = myGetKernel(context, module, "simple_add");
 
-    // // Create SYCL program from SPIR-V binary
-    // sycl::program program(context);
-    // program.build_with_kernel_type<sycl::kernel>(spirv_binary.data(), spirv_binary.size());
+    // input param:
+    size_t length = 1000;
+    const int32_t xval(1);
+    const int32_t yval(2);
+    const int32_t bias(3);
+    const int32_t expected(xval + yval + bias);
 
-    // // Submit kernel to the queue
-    // queue.submit([&](sycl::handler &cgh)
-    //              {
-    //     auto kernel = program.get_kernel<sycl::kernel>();
-    //     cgh.single_task(kernel, [=]() {
-    //         // Kernel code here
-    //     }); });
+    auto X = sycl::malloc_shared<int32_t>(length, queue);
+    auto Y = sycl::malloc_shared<int32_t>(length, queue);
+    auto Z = sycl::malloc_shared<int32_t>(length, queue);
+    for (size_t i = 0; i < length; i++)
+    {
+        X[i] = xval;
+        Y[i] = yval;
+        Z[i] = 0;
+    }
+    int32_t *params[3] = {X, Y, Z};
 
-    // queue.wait_and_throw();
-    // std::cout << "Success!\n";
+    myLaunchKernel(&queue, kernel, length, reinterpret_cast<void **>(params), 3u);
+
+    queue.parallel_for<class sycl_kernel_add_3>(sycl::range<1>(length), [Z](sycl::id<1> i)
+                                                { Z[i] = Z[i] + 3; });
+    queue.wait();
+
+    bool is_expected = true;
+    for (size_t i = 0; i < length; i++)
+    {
+        if (abs(expected - Z[i]) > 0)
+        {
+            std::cout << "== Result [" << i << "] diff: " << abs(expected - Z[i]) << ", expect: " << expected << ", result=" << Z[i] << std::endl;
+            is_expected = false;
+        }
+    }
+
+    std::cout << (is_expected ? "Success!\n" : "Fail!\n");
     return 0;
 }

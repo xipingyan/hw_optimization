@@ -11,10 +11,15 @@ project(${PRJ_NAME})
 
 find_package(IntelSYCL REQUIRED)
 find_package(OpenCL REQUIRED)
-find_package(LevelZero REQUIRED)
+
+# LevelZero is built from source codes.
+set(LEVELZERO_DIR /mnt/xiping/hw_optimization/intel_gpu/levelzero_learn/CodeSamples/level-zero/build/install)
+set(LZ_INC_DIR ${LEVELZERO_DIR}/include/level_zero)
+set(LZ_LIB_DIR ${LEVELZERO_DIR}/lib)
 
 include_directories(
 	${Utils}
+	${LZ_INC_DIR}
 	)
 
 file(GLOB SRC 
@@ -25,4 +30,13 @@ add_executable(${PRJ_NAME}
 )
 
 add_sycl_to_target(TARGET ${PRJ_NAME}  SOURCES ${SRC} )
-target_link_libraries(${PRJ_NAME} PRIVATE OpenCL::OpenCL)
+
+target_link_directories(${PRJ_NAME} PUBLIC 
+	${LZ_LIB_DIR})
+
+target_link_libraries(${PRJ_NAME} PRIVATE 
+	OpenCL::OpenCL 
+	ze_loader
+	ze_tracing_layer
+	ze_validation_layer
+	)

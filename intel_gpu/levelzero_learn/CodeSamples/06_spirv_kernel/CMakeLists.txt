@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.20)
 
-set(PRJ_NAME 05_ModulesKernels)
+set(PRJ_NAME 06_spirv_kernel)
 project(${PRJ_NAME})
 
 include_directories(
