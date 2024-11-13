@@ -6,11 +6,12 @@ else()
 	cmake_minimum_required(VERSION 3.23.5)
 endif()
 
-set(PRJ_NAME 03_levelzero_backend_olc_kernel)
+set(PRJ_NAME 03_sycl_levelzero_backend)
 project(${PRJ_NAME})
 
 find_package(IntelSYCL REQUIRED)
 find_package(OpenCL REQUIRED)
+find_package(LevelZero REQUIRED)
 
 include_directories(
 	${Utils}
