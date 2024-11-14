@@ -27,11 +27,13 @@ int multi_queue(sycl::queue &q, const IntArray &a, const IntArray &b)
   auto t1 = std::chrono::high_resolution_clock::now();
   for (int i = 0; i < iter; i++)
   {
-    q.submit([&](sycl::handler &h)
-             {
+    auto e1 = q.submit([&](sycl::handler &h)
+                       {
       sycl::accessor a_acc(a_buf, h, sycl::read_only);
       sycl::accessor b_acc(b_buf, h, sycl::read_only);
       sycl::accessor sum_acc(sum_buf1, h, sycl::write_only, sycl::no_init);
+      
+      // auto out = sycl::stream(1024, 768, h);
 
       // These kernels are created specifically with 1 group to ensure that they do not use the entire machine
       h.parallel_for<class my_kernel_1>(sycl::nd_range<1>(num_groups * wg_size, wg_size),
@@ -43,11 +45,13 @@ int multi_queue(sycl::queue &q, const IntArray &a, const IntArray &b)
                             sum_acc[loc_id] += a_acc[i] + b_acc[i];
                           }
                       }); });
-    q.submit([&](sycl::handler &h)
+    auto e2 = q.submit([&](sycl::handler &h)
              {
       sycl::accessor a_acc(a_buf, h, sycl::read_only);
       sycl::accessor b_acc(b_buf, h, sycl::read_only);
       sycl::accessor sum_acc(sum_buf2, h, sycl::write_only, sycl::no_init);
+
+      // auto out = sycl::stream(1024, 768, h);
 
       h.parallel_for<class my_kernel_2>(sycl::nd_range<1>(num_groups * wg_size, wg_size),
                       [=](sycl::nd_item<1> index) {
@@ -57,12 +61,18 @@ int multi_queue(sycl::queue &q, const IntArray &a, const IntArray &b)
                           for (size_t i = loc_id; i < array_size; i += wg_size) {
                             sum_acc[loc_id] += a_acc[i] + b_acc[i];
                           }
+
+                        // out << "== my_kernel_2 is executing." << sycl::endl;
                       }); });
-    q.submit([&](sycl::handler &h)
+    auto e3 = q.submit([&](sycl::handler &h)
              {
       sycl::accessor a_acc(a_buf, h, sycl::read_only);
       sycl::accessor b_acc(b_buf, h, sycl::read_only);
       sycl::accessor sum_acc(sum_buf3, h, sycl::write_only, sycl::no_init);
+
+      // Manaully set execution order.
+      h.depends_on({e1, e2});
+      // auto out = sycl::stream(wg_size, 256, h);
 
       h.parallel_for<class my_kernel_3>(sycl::nd_range<1>(num_groups * wg_size, wg_size),
         [=](sycl::nd_item<1> index) {
@@ -72,6 +82,7 @@ int multi_queue(sycl::queue &q, const IntArray &a, const IntArray &b)
             for (size_t i = loc_id; i < array_size; i += wg_size) {
               sum_acc[loc_id] += a_acc[i] + b_acc[i];
             }
+          // out << "== my_kernel_3 is executing." << loc_id << sycl::endl;
         }); });
   }
   q.wait();
