@@ -41,7 +41,7 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
 
 #### Parse spv file(SPIR-V format)
 
-``1`` SPIRV-ToolsS
+``1`` SPIRV-Tools
 
     cd hw_optimization/intel_gpu/
     git clone https://github.com/KhronosGroup/SPIRV-Tools

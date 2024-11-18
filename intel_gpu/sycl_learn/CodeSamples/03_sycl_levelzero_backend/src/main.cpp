@@ -9,36 +9,28 @@
 #include <cmath>
 #include <fstream>
 #include <vector>
+
+#if __has_include(<sycl/sycl.hpp>)
+#include <sycl/sycl.hpp>
+#elif __has_include(<CL/sycl.hpp>)
 #include <CL/sycl.hpp>
+#else
+#error "Unsupported compiler"
+#endif
+
 #include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
+
+// oneDNN headers
+#include "oneapi/dnnl/dnnl.hpp"
+#include "oneapi/dnnl/dnnl_debug.h"
+#include "oneapi/dnnl/dnnl_sycl.hpp"
 
 #define PRINT_VAR(var) std::cout << #var << " = " << var << std::endl
 
 namespace
 {
-    template <typename F>
-    auto catchAll(F &&func)
-    {
-        try
-        {
-            return func();
-        }
-        catch (const std::exception &e)
-        {
-            fprintf(stdout, "An exception was thrown: %s\n", e.what());
-            fflush(stdout);
-            abort();
-        }
-        catch (...)
-        {
-            fprintf(stdout, "An unknown exception was thrown\n");
-            fflush(stdout);
-            abort();
-        }
-    }
-
 #define L0_SAFE_CALL(call)                            \
     {                                                 \
         ze_result_t status = (call);                  \
@@ -101,11 +93,11 @@ sycl::kernel *myGetKernel(sycl::context ctxt, ze_module_handle_t zeModule, const
 }
 
 sycl::event myLaunchKernel(sycl::queue *queue, sycl::kernel *kernel, int element_size,
-                    void **params, size_t paramsCount)
+                           void **params, size_t paramsCount)
 {
     std::cout << "  == Start to launch SPIRV kernel(add to sycl::queue)." << std::endl;
     return queue->submit([&](sycl::handler &cgh)
-                  {
+                         {
      for (size_t i = 0; i < paramsCount; i++) {
        cgh.set_arg(static_cast<uint32_t>(i), params[i]);
      }
@@ -143,7 +135,6 @@ sycl::event launchSPVKernelFromOpenCLOffline(sycl::queue &queue, size_t length, 
     int32_t *params[3] = {X, Y, Z};
     return myLaunchKernel(&queue, kernel, length, reinterpret_cast<void **>(params), 3u);
 }
-
 
 // Way 2: Launch SPIR-V format kernel (Converted from OpenCL)
 // Refer : https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc
@@ -201,14 +192,12 @@ sycl::event launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, in
 
                         // Invoke the kernel over an nd-range.
                         sycl::nd_range ndr{{length}, {WGSIZE}};
-                        cgh.parallel_for(ndr, k); 
-                    });
+                        cgh.parallel_for(ndr, k); });
 }
-
 
 // Launch OpenCL, online compile to Sycl interface.
 // Refer: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc
-sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t *Z, sycl::event& dep_event)
+sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t *Z, sycl::event &dep_event)
 {
     std::cout << "== Start to test launch OpenCL kernel and compile online." << std::endl;
     // Kernel defined as an OpenCL C string.  This could be dynamically
@@ -257,8 +246,42 @@ sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, 
 
                         // Invoke the kernel over an nd-range.
                         sycl::nd_range ndr{{length}, {WGSIZE}};
-                        cgh.parallel_for(ndr, k); 
-                    });
+                        cgh.parallel_for(ndr, k); });
+}
+
+void launchOneDNNKernel_reference(std::vector<int32_t> &expected)
+{
+    for (size_t i = 0; i < expected.size(); i++)
+    {
+        expected[i] = expected[i] < 0 ? 0 : expected[i];
+    }
+}
+
+// Refer:
+// https://github.com/oneapi-src/oneDNN/blob/main/examples/sycl_interop_usm.cpp
+// https://oneapi-src.github.io/oneDNN/v2/dev_guide_dpcpp_interoperability.html
+sycl::event launchOneDNNKernel(sycl::queue &q, size_t length, int32_t *Z, sycl::event &dep_event)
+{
+    auto eng = dnnl::sycl_interop::make_engine(q.get_device(), q.get_context());
+
+    auto strm = dnnl::sycl_interop::make_stream(eng, q);
+
+    auto usm_buffer = (float *)malloc_shared(length * sizeof(float),
+                                             dnnl::sycl_interop::get_device(eng), dnnl::sycl_interop::get_context(eng));
+
+    dnnl::memory::dims tz_dims = {1, 1, 1, static_cast<dnnl_dim_t>(length)};
+    // dnnl::memory::desc mem_d(tz_dims, dnnl::memory::data_type::f32, dnnl::memory::format_tag::nchw);
+    dnnl::memory::desc mem_d(tz_dims, dnnl::memory::data_type::s32, dnnl::memory::format_tag::nchw);
+
+    dnnl::memory mem = dnnl::sycl_interop::make_memory(mem_d, eng, dnnl::sycl_interop::memory_kind::usm, Z);
+
+    float alpha = 0.0f;
+    auto relu_pd = dnnl::eltwise_forward::primitive_desc(eng, dnnl::prop_kind::forward,
+                                                         dnnl::algorithm::eltwise_relu, mem_d, mem_d, alpha);
+    auto relu = dnnl::eltwise_forward(relu_pd);
+
+    return dnnl::sycl_interop::execute(relu, strm, {{DNNL_ARG_SRC, mem}, {DNNL_ARG_DST, mem}}, {dep_event});
+    // relu_e.wait();
 }
 
 int main()
@@ -273,30 +296,36 @@ int main()
 
     // input param:
     size_t length = 1000;
-    const int32_t xval(1);
-    const int32_t yval(2);
-    const int32_t bias(3);
-
     auto X = sycl::malloc_shared<int32_t>(length, queue);
     auto Y = sycl::malloc_shared<int32_t>(length, queue);
     auto Z = sycl::malloc_shared<int32_t>(length, queue);
+    auto expected = std::vector<int32_t>(length);
     for (size_t i = 0; i < length; i++)
     {
-        X[i] = xval;
-        Y[i] = yval;
+        X[i] = (i % 2) ? (i % 100) : (-i % 100);
+        Y[i] = X[i];
         Z[i] = 0;
     }
 
-    // OpenCL offline kernel: Z = X + Y;
-    int32_t expected = xval + yval;
+    // 1: OpenCL offline kernel: Z = X + Y;
+    for (size_t i = 0; i < length; i++)
+    {
+        expected[i] = X[i] + Y[i];
+    }
     auto event1 = launchSPVKernelFromOpenCLOffline(queue, length, X, Y, Z);
 
-    // OpenCL online kernel: Z = 2 * Z + X;
-    expected = 2 * expected + xval;
+    // 2: OpenCL online kernel: Z = 2 * Z + X;
+    for (size_t i = 0; i < length; i++)
+    {
+        expected[i] = 2 * expected[i] + X[i];
+    }
     auto event2 = launchOpenCLKernelOnline(queue, length, X, Z, event1);
 
-    // Sycl kernel: Z = Z + 3
-    expected = expected + 3;
+    // 3: Sycl kernel: Z = Z + 3
+    for (size_t i = 0; i < length; i++)
+    {
+        expected[i] = expected[i] + 3;
+    }
     std::cout << "== Start to launch native sycl kernel." << std::endl;
 #if 1
     auto event3 = queue.parallel_for<class sycl_kernel_add_3>(sycl::range<1>(length), [Z](sycl::id<1> i)
@@ -311,15 +340,30 @@ int main()
                                         Z[i] = Z[i] + 3;
                                     }); });
 #endif
+
+    // 4: oneDNN kernel
+    std::cout << "== Launch oneDNN kernel..." << std::endl;
+    launchOneDNNKernel_reference(expected);
+    auto envet4 = launchOneDNNKernel(queue, length, Z, event3);
+
+    // 5: SYCL kernel
+    std::cout << "== Launch sycl_kernel_add_y." << std::endl;
+    for (size_t i = 0; i < length; i++)
+    {
+        expected[i] = expected[i] + Y[i];
+    }
+    queue.parallel_for<class sycl_kernel_add_y>(sycl::range<1>(length), [Z, Y](sycl::id<1> i)
+                                                { Z[i] = Z[i] + Y[i]; });
+
     queue.wait();
 
     std::cout << "== Start to compare result." << std::endl;
     bool is_expected = true;
     for (size_t i = 0; i < length; i++)
     {
-        if (abs(expected - Z[i]) > 0)
+        if (abs(expected[i] - Z[i]) > 0)
         {
-            std::cout << "== Result [" << i << "] diff: " << abs(expected - Z[i]) << ", expect: " << expected << ", result=" << Z[i] << std::endl;
+            std::cout << "== Result [" << i << "] diff: " << abs(expected[i] - Z[i]) << ", expect: " << expected[i] << ", result=" << Z[i] << std::endl;
             is_expected = false;
         }
     }

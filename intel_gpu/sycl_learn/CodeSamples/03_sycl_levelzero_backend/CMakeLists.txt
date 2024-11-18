@@ -17,9 +17,14 @@ set(LEVELZERO_DIR /mnt/xiping/hw_optimization/intel_gpu/levelzero_learn/CodeSamp
 set(LZ_INC_DIR ${LEVELZERO_DIR}/include/level_zero)
 set(LZ_LIB_DIR ${LEVELZERO_DIR}/lib)
 
+# oneDNN lib
+set(oneDNN_INC_DIR ${CMAKE_CURRENT_SOURCE_DIR}/oneDNN/build/install/include/)
+set(oneDNN_LIB_DIR ${CMAKE_CURRENT_SOURCE_DIR}/oneDNN/build/install/lib/)
+
 include_directories(
 	${Utils}
 	${LZ_INC_DIR}
+	${oneDNN_INC_DIR}
 	)
 
 file(GLOB SRC 
@@ -32,11 +37,14 @@ add_executable(${PRJ_NAME}
 add_sycl_to_target(TARGET ${PRJ_NAME}  SOURCES ${SRC} )
 
 target_link_directories(${PRJ_NAME} PUBLIC 
-	${LZ_LIB_DIR})
+	${LZ_LIB_DIR}
+	${oneDNN_LIB_DIR}
+	)
 
 target_link_libraries(${PRJ_NAME} PRIVATE 
 	OpenCL::OpenCL 
 	ze_loader
 	ze_tracing_layer
 	ze_validation_layer
+	dnnl
 	)
