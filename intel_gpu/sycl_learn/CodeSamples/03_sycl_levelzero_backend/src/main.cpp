@@ -119,7 +119,7 @@ void myLaunchKernel(sycl::queue *queue, sycl::kernel *kernel, int element_size,
 // Refer: https://github.com/xipingyan/hw_optimization/blob/main/intel_gpu/opencl_learn/CodeSamples/01_HelloOpenCL/README.md
 void launchSPVKernelFromOpenCLOffline(sycl::queue &queue, size_t length, int32_t *X, int32_t *Y, int32_t *Z)
 {
-    std::cout << "Start to launch SPIR-V kernel(converted from opencl kernel)." << std::endl;
+    std::cout << "== Start to launch SPIR-V kernel(converted from opencl kernel)." << std::endl;
 
     // Load SPIR-V binary
     std::string spirv_fn = "../../../opencl_learn/CodeSamples/build/simple_add.spv";
@@ -130,7 +130,7 @@ void launchSPVKernelFromOpenCLOffline(sycl::queue &queue, size_t length, int32_t
         exit(0);
     }
     std::vector<char> spirv_binary((std::istreambuf_iterator<char>(spirv_file)), std::istreambuf_iterator<char>());
-    std::cout << "== Readed spirv kernel file: " << spirv_fn << std::endl;
+    std::cout << "  == Readed spirv kernel file: " << spirv_fn << std::endl;
 
     // Create SYCL context and queue using Level Zero backend
     auto context = queue.get_context();
@@ -139,14 +139,78 @@ void launchSPVKernelFromOpenCLOffline(sycl::queue &queue, size_t length, int32_t
     auto module = myLoadModule(context, device, spirv_binary.data(), spirv_binary.size());
     auto kernel = myGetKernel(context, module, "simple_add");
 
+    std::cout << "  == launch kernel" << std::endl;
     int32_t *params[3] = {X, Y, Z};
     myLaunchKernel(&queue, kernel, length, reinterpret_cast<void **>(params), 3u);
 }
+
+
+// Way 2: Launch SPIR-V format kernel (Converted from OpenCL)
+// Refer : https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc
+// 2 is more friendly, but it alsp trigger other kernel crash.???
+void launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, int32_t *X, int32_t *Y, int32_t *Z)
+{
+    std::cout << "== Start to launch SPIR-V kernel(converted from opencl kernel)." << std::endl;
+
+    // Load SPIR-V binary
+    std::string spirv_fn = "../../../opencl_learn/CodeSamples/build/simple_add.spv";
+    std::cout << "  == Start to SPIR-V kernel file: " << spirv_fn << std::endl;
+    // Read the SPIR-V module from disk.
+    std::ifstream spv_stream(spirv_fn, std::ios::binary);
+    spv_stream.seekg(0, std::ios::end);
+    size_t sz = spv_stream.tellg();
+    spv_stream.seekg(0);
+    std::vector<std::byte> spv(sz);
+    spv_stream.read((char *)spv.data(), sz);
+
+    // Create a kernel bundle from the binary SPIR-V.
+    std::cout << "  == Start to kernel_bundle spv" << std::endl;
+    sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
+        syclex::create_kernel_bundle_from_source(
+            q.get_context(),
+            syclex::source_language::spirv,
+            spv);
+
+    // Build the SPIR-V module for our device.
+    std::cout << "  == Start to build kb_src" << std::endl;
+    sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
+        syclex::build(kb_src);
+
+    // Get a "kernel" object representing the kernel from the SPIR-V module.
+    std::cout << "  == Start to get sycl::kernel" << std::endl;
+    sycl::kernel k = kb_exe.ext_oneapi_get_kernel("simple_add");
+
+    // constexpr int N = 4;
+    constexpr int WGSIZE = 1;
+    // int32_t input[N] = {0, 1, 2, 3};
+    // int32_t output[N] = {};
+
+    sycl::buffer buf_x(X, sycl::range{length});
+    sycl::buffer buf_y(Y, sycl::range{length});
+    sycl::buffer buf_z(Z, sycl::range{length});
+
+    std::cout << "  == Start to submit kernel" << std::endl;
+    q.submit([&](sycl::handler &cgh)
+             {
+    sycl::accessor in_x{buf_x, cgh, sycl::read_only};
+    sycl::accessor in_y{buf_y, cgh, sycl::read_only};
+    sycl::accessor out_z{buf_z, cgh, sycl::read_write};
+
+    // Set the values for the kernel arguments.
+    cgh.set_args(in_x, in_y, out_z);
+
+    // Invoke the kernel over an nd-range.
+    sycl::nd_range ndr{{length}, {WGSIZE}};
+    cgh.parallel_for(ndr, k); });
+    std::cout << "  == Start to run" << std::endl;
+}
+
 
 // Launch OpenCL, online compile to Sycl interface.
 // Refer: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc
 void launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t *Z)
 {
+    std::cout << "== Start to test launch OpenCL kernel and compile online." << std::endl;
     // Kernel defined as an OpenCL C string.  This could be dynamically
     // generated instead of a literal.
     std::string source = R"""(
@@ -156,6 +220,7 @@ void launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t
         }
     )""";
 
+    std::cout << "  == Start to kernel_bundle opencl source" << std::endl;
     sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
         syclex::create_kernel_bundle_from_source(
             q.get_context(),
@@ -163,11 +228,13 @@ void launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t
             source);
 
     // Compile and link the kernel from the source definition.
+    std::cout << "  == Start to kernel_bundle kb_src" << std::endl;
     sycl::kernel_bundle<sycl::bundle_state::executable> kb_exe =
         syclex::build(kb_src);
 
     // Get a "kernel" object representing the kernel defined in the
     // source string.
+    std::cout << "  == Start to get sycl::kernel" << std::endl;
     sycl::kernel k = kb_exe.ext_oneapi_get_kernel("my_kernel");
 
     // constexpr int N = length;
@@ -178,6 +245,7 @@ void launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t
     sycl::buffer inputbuf(X, sycl::range{length});
     sycl::buffer outputbuf(Z, sycl::range{length});
 
+    std::cout << "  == Start to submit" << std::endl;
     q.submit([&](sycl::handler &cgh)
              {
     sycl::accessor in{inputbuf, cgh, sycl::read_only};
@@ -227,10 +295,12 @@ int main()
 
     // Sycl kernel: Z = Z + 3
     expected = expected + 3;
+    std::cout << "== Start to launch native sycl kernel." << std::endl;
     queue.parallel_for<class sycl_kernel_add_3>(sycl::range<1>(length), [Z](sycl::id<1> i)
                                                 { Z[i] = Z[i] + 3; });
     queue.wait();
 
+    std::cout << "== Start to compare result." << std::endl;
     bool is_expected = true;
     for (size_t i = 0; i < length; i++)
     {
