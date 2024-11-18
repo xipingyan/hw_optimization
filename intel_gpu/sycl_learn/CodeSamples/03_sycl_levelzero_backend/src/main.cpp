@@ -196,6 +196,10 @@ int main()
     std::cout << "Start to test call SPIR-V kernel(converted from opencl kernel)." << std::endl;
 
     auto queue = sycl::queue(sycl::gpu_selector_v);
+    std::cout << "== Using "
+              << queue.get_device().get_info<sycl::info::device::name>()
+              << ", Backend: " << queue.get_backend()
+              << std::endl;
 
     // input param:
     size_t length = 1000;
