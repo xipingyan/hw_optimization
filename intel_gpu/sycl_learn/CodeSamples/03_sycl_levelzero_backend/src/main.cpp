@@ -100,11 +100,11 @@ sycl::kernel *myGetKernel(sycl::context ctxt, ze_module_handle_t zeModule, const
     return new sycl::kernel(kernel);
 }
 
-void myLaunchKernel(sycl::queue *queue, sycl::kernel *kernel, int element_size,
+sycl::event myLaunchKernel(sycl::queue *queue, sycl::kernel *kernel, int element_size,
                     void **params, size_t paramsCount)
 {
     std::cout << "  == Start to launch SPIRV kernel(add to sycl::queue)." << std::endl;
-    queue->submit([&](sycl::handler &cgh)
+    return queue->submit([&](sycl::handler &cgh)
                   {
      for (size_t i = 0; i < paramsCount; i++) {
        cgh.set_arg(static_cast<uint32_t>(i), params[i]);
@@ -117,7 +117,7 @@ void myLaunchKernel(sycl::queue *queue, sycl::kernel *kernel, int element_size,
 // Launch SPIR-V format kernel (Converted from OpenCL)
 // Converted OpenCL to SPIR-V:
 // Refer: https://github.com/xipingyan/hw_optimization/blob/main/intel_gpu/opencl_learn/CodeSamples/01_HelloOpenCL/README.md
-void launchSPVKernelFromOpenCLOffline(sycl::queue &queue, size_t length, int32_t *X, int32_t *Y, int32_t *Z)
+sycl::event launchSPVKernelFromOpenCLOffline(sycl::queue &queue, size_t length, int32_t *X, int32_t *Y, int32_t *Z)
 {
     std::cout << "== Start to launch SPIR-V kernel(converted from opencl kernel)." << std::endl;
 
@@ -141,14 +141,14 @@ void launchSPVKernelFromOpenCLOffline(sycl::queue &queue, size_t length, int32_t
 
     std::cout << "  == launch kernel" << std::endl;
     int32_t *params[3] = {X, Y, Z};
-    myLaunchKernel(&queue, kernel, length, reinterpret_cast<void **>(params), 3u);
+    return myLaunchKernel(&queue, kernel, length, reinterpret_cast<void **>(params), 3u);
 }
 
 
 // Way 2: Launch SPIR-V format kernel (Converted from OpenCL)
 // Refer : https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_spirv.asciidoc
 // 2 is more friendly, but it alsp trigger other kernel crash.???
-void launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, int32_t *X, int32_t *Y, int32_t *Z)
+sycl::event launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, int32_t *X, int32_t *Y, int32_t *Z)
 {
     std::cout << "== Start to launch SPIR-V kernel(converted from opencl kernel)." << std::endl;
 
@@ -190,25 +190,25 @@ void launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, int32_t *
     sycl::buffer buf_z(Z, sycl::range{length});
 
     std::cout << "  == Start to submit kernel" << std::endl;
-    q.submit([&](sycl::handler &cgh)
-             {
-    sycl::accessor in_x{buf_x, cgh, sycl::read_only};
-    sycl::accessor in_y{buf_y, cgh, sycl::read_only};
-    sycl::accessor out_z{buf_z, cgh, sycl::read_write};
+    return q.submit([&](sycl::handler &cgh)
+                    {
+                        sycl::accessor in_x{buf_x, cgh, sycl::read_only};
+                        sycl::accessor in_y{buf_y, cgh, sycl::read_only};
+                        sycl::accessor out_z{buf_z, cgh, sycl::read_write};
 
-    // Set the values for the kernel arguments.
-    cgh.set_args(in_x, in_y, out_z);
+                        // Set the values for the kernel arguments.
+                        cgh.set_args(in_x, in_y, out_z);
 
-    // Invoke the kernel over an nd-range.
-    sycl::nd_range ndr{{length}, {WGSIZE}};
-    cgh.parallel_for(ndr, k); });
-    std::cout << "  == Start to run" << std::endl;
+                        // Invoke the kernel over an nd-range.
+                        sycl::nd_range ndr{{length}, {WGSIZE}};
+                        cgh.parallel_for(ndr, k); 
+                    });
 }
 
 
 // Launch OpenCL, online compile to Sycl interface.
 // Refer: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc
-void launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t *Z)
+sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t *Z, sycl::event& dep_event)
 {
     std::cout << "== Start to test launch OpenCL kernel and compile online." << std::endl;
     // Kernel defined as an OpenCL C string.  This could be dynamically
@@ -246,17 +246,19 @@ void launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t
     sycl::buffer outputbuf(Z, sycl::range{length});
 
     std::cout << "  == Start to submit" << std::endl;
-    q.submit([&](sycl::handler &cgh)
-             {
-    sycl::accessor in{inputbuf, cgh, sycl::read_only};
-    sycl::accessor out{outputbuf, cgh, sycl::read_write};
+    return q.submit([&](sycl::handler &cgh)
+                    {
+                        cgh.depends_on(dep_event);
+                        sycl::accessor in{inputbuf, cgh, sycl::read_only};
+                        sycl::accessor out{outputbuf, cgh, sycl::read_write};
 
-    // Each argument to the kernel is a SYCL accessor.
-    cgh.set_args(in, out);
+                        // Each argument to the kernel is a SYCL accessor.
+                        cgh.set_args(in, out);
 
-    // Invoke the kernel over an nd-range.
-    sycl::nd_range ndr{{length}, {WGSIZE}};
-    cgh.parallel_for(ndr, k); });
+                        // Invoke the kernel over an nd-range.
+                        sycl::nd_range ndr{{length}, {WGSIZE}};
+                        cgh.parallel_for(ndr, k); 
+                    });
 }
 
 int main()
@@ -287,17 +289,28 @@ int main()
 
     // OpenCL offline kernel: Z = X + Y;
     int32_t expected = xval + yval;
-    launchSPVKernelFromOpenCLOffline(queue, length, X, Y, Z);
+    auto event1 = launchSPVKernelFromOpenCLOffline(queue, length, X, Y, Z);
 
     // OpenCL online kernel: Z = 2 * Z + X;
     expected = 2 * expected + xval;
-    launchOpenCLKernelOnline(queue, length, X, Z);
+    auto event2 = launchOpenCLKernelOnline(queue, length, X, Z, event1);
 
     // Sycl kernel: Z = Z + 3
     expected = expected + 3;
     std::cout << "== Start to launch native sycl kernel." << std::endl;
-    queue.parallel_for<class sycl_kernel_add_3>(sycl::range<1>(length), [Z](sycl::id<1> i)
-                                                { Z[i] = Z[i] + 3; });
+#if 1
+    auto event3 = queue.parallel_for<class sycl_kernel_add_3>(sycl::range<1>(length), [Z](sycl::id<1> i)
+                                                              { Z[i] = Z[i] + 3; });
+#else // Add depends_on.
+    auto event3 = queue.submit([&](sycl::handler &cgh)
+                               {
+                                    cgh.depends_on(event2);
+                                    // Invoke the kernel over an nd-range.
+                                    sycl::nd_range ndr{{length}, {1}};
+                                    cgh.parallel_for(sycl::range<1>(length), [Z](sycl::id<1> i){
+                                        Z[i] = Z[i] + 3;
+                                    }); });
+#endif
     queue.wait();
 
     std::cout << "== Start to compare result." << std::endl;
