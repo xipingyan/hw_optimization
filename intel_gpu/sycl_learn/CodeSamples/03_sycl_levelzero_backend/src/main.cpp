@@ -18,7 +18,6 @@
 #error "Unsupported compiler"
 #endif
 
-#include <level_zero/ze_api.h>
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 
@@ -27,7 +26,9 @@ namespace syclex = sycl::ext::oneapi::experimental;
 #include "oneapi/dnnl/dnnl_debug.h"
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 
-#define PRINT_VAR(var) std::cout << #var << " = " << var << std::endl
+#define ENABLE_LEVELZERO 0
+#if ENABLE_LEVELZERO
+#include <level_zero/ze_api.h>
 
 namespace
 {
@@ -194,6 +195,7 @@ sycl::event launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, in
                         sycl::nd_range ndr{{length}, {WGSIZE}};
                         cgh.parallel_for(ndr, k); });
 }
+#endif
 
 // Launch OpenCL, online compile to Sycl interface.
 // Refer: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc
@@ -307,12 +309,16 @@ int main()
         Z[i] = 0;
     }
 
+#if ENABLE_LEVELZERO
     // 1: OpenCL offline kernel: Z = X + Y;
     for (size_t i = 0; i < length; i++)
     {
         expected[i] = X[i] + Y[i];
     }
     auto event1 = launchSPVKernelFromOpenCLOffline(queue, length, X, Y, Z);
+    #else
+    auto event1 = sycl::event();
+#endif
 
     // 2: OpenCL online kernel: Z = 2 * Z + X;
     for (size_t i = 0; i < length; i++)
