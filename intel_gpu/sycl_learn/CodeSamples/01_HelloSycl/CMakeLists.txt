@@ -9,8 +9,14 @@ endif()
 set(PRJ_NAME 01_HelloSycl)
 project(${PRJ_NAME})
 
+MESSAGE(STATUS "== Start: ${PRJ_NAME}")
+
 find_package(IntelSYCL REQUIRED)
-#set(CMAKE_CXX_COMPILER dpcpp)
+
+if (NOT DEFINED Utils)
+	set(Utils ${CMAKE_SOURCE_DIR}/../utils)
+endif()
+MESSAGE(STATUS "Utils = ${Utils}")
 
 include_directories(
 	${Utils}
@@ -19,7 +25,6 @@ include_directories(
 file(GLOB SRC 
 	"src/*.cpp")
 
-MESSAGE(STATUS "Utils=${Utils}")
 
 add_executable(${PRJ_NAME}
 	${SRC}

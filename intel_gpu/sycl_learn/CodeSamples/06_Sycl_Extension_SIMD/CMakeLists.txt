@@ -9,6 +9,8 @@ endif()
 set(PRJ_NAME 06_Sycl_Extension_SIMD)
 project(${PRJ_NAME})
 
+MESSAGE(STATUS "== Start: ${PRJ_NAME}")
+
 find_package(IntelSYCL REQUIRED)
 #set(CMAKE_CXX_COMPILER dpcpp)
 

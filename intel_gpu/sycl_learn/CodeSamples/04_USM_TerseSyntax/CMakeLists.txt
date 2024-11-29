@@ -9,6 +9,8 @@ endif()
 set(PRJ_NAME 04_USM_TerseSyntax)
 project(${PRJ_NAME})
 
+MESSAGE(STATUS "== Start: ${PRJ_NAME}")
+
 find_package(IntelSYCL REQUIRED)
 #set(CMAKE_CXX_COMPILER dpcpp)
 

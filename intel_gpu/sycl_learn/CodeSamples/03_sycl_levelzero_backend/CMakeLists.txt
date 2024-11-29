@@ -9,6 +9,8 @@ endif()
 set(PRJ_NAME 03_sycl_levelzero_backend)
 project(${PRJ_NAME})
 
+MESSAGE(STATUS "== Start: ${PRJ_NAME}")
+
 find_package(IntelSYCL REQUIRED)
 find_package(OpenCL REQUIRED)
 

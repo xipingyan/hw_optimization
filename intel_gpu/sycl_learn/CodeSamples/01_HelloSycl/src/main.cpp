@@ -5,9 +5,11 @@
 #include <sycl/sycl.hpp>
 #include <cmath>
 
+#include "my_log.hpp"
+
 std::vector<float> vec_add(std::vector<float> &a, std::vector<float> &b, sycl::queue &queue)
 {
-    std::cout << "== Call sycl kernel: vec_add" << std::endl;
+    DEBUG_LOG << "== Call sycl kernel: vec_add" << std::endl;
     std::vector<float> sum(a.size());
     // Compute the first n_items values in a well known sequence
     size_t n_items = a.size();
@@ -64,7 +66,7 @@ std::vector<float> vec_add(std::vector<float> &a, std::vector<float> &b, sycl::q
 // }
 
 void print_device_info(sycl::queue queue) {
-    std::cout << "Device info:" << std::endl;
+    DEBUG_LOG << "Device info:" << std::endl;
 
 #define PRINT_ITM(ITM) std::cout << "  == " << #ITM << " : " << queue.get_device().get_info<sycl::info::device::ITM>() << std::endl
     PRINT_ITM(name);
@@ -96,14 +98,14 @@ int main(int argc, char *argv[])
     sycl::queue queue{sycl::gpu_selector_v};
 
     // sycl::queue queue;
-    std::cout << "Using "
+    DEBUG_LOG << "Using "
               << queue.get_device().get_info<sycl::info::device::name>()
               << ", Backend: " << queue.get_backend()
               << std::endl;
 
     print_device_info(queue);
 
-    std::cout << "== prepare input." << std::endl;
+    DEBUG_LOG << "== prepare input." << std::endl;
     std::vector<float> a, b, expected;
     for (int i = 0; i < 10000; i++)
     {
@@ -115,16 +117,16 @@ int main(int argc, char *argv[])
     auto result = vec_add(a, b, queue);
     // result = vec_div_4(result, queue);
 
-    std::cout << "== compare result and expected." << std::endl;
+    DEBUG_LOG << "== compare result and expected." << std::endl;
     bool result_is_expected = true;
     for (int i = 0; i < 10000; i++)
     {
         if (fabs(expected[i] - result[i]) > 0.0001f)
         {
-            std::cout << "  == Result [" << i << "] diff: " << fabs(expected[i] - result[i]) << ", result=" << result[i] << std::endl;
+            DEBUG_LOG << "  == Result [" << i << "] diff: " << fabs(expected[i] - result[i]) << ", result=" << result[i] << std::endl;
             result_is_expected = false;
         }
     }
-    std::cout << "== Done, result is " << (result_is_expected ? "expected" : "not expected") << std::endl;
+    DEBUG_LOG << "== Done, result is " << (result_is_expected ? "expected" : "not expected") << std::endl;
     return 0;
 }
