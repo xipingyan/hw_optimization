@@ -6,6 +6,7 @@
 #include <cmath>
 
 #include "my_log.hpp"
+#include "my_device.hpp"
 
 std::vector<float> vec_add(std::vector<float> &a, std::vector<float> &b, sycl::queue &queue)
 {
@@ -65,33 +66,6 @@ std::vector<float> vec_add(std::vector<float> &a, std::vector<float> &b, sycl::q
 //     return dst;
 // }
 
-void print_device_info(sycl::queue queue) {
-    DEBUG_LOG << "Device info:" << std::endl;
-
-#define PRINT_ITM(ITM) std::cout << "  == " << #ITM << " : " << queue.get_device().get_info<sycl::info::device::ITM>() << std::endl
-    PRINT_ITM(name);
-    PRINT_ITM(vendor);
-    PRINT_ITM(vendor_id);
-    PRINT_ITM(driver_version);
-    PRINT_ITM(version);
-
-    PRINT_ITM(max_compute_units);
-    PRINT_ITM(max_work_item_dimensions);
-    PRINT_ITM(max_work_group_size);
-    PRINT_ITM(max_num_sub_groups);
-
-    PRINT_ITM(max_clock_frequency);
-    PRINT_ITM(max_mem_alloc_size);
-    PRINT_ITM(max_samplers);
-    PRINT_ITM(max_parameter_size);
-    PRINT_ITM(global_mem_cache_line_size);
-    PRINT_ITM(global_mem_cache_size);
-    PRINT_ITM(global_mem_size);
-    PRINT_ITM(local_mem_size);
-
-    std::cout << std::endl;
-}
-
 int main(int argc, char *argv[])
 {
     // sycl::queue queue{sycl::default_selector_v};
@@ -102,6 +76,8 @@ int main(int argc, char *argv[])
               << queue.get_device().get_info<sycl::info::device::name>()
               << ", Backend: " << queue.get_backend()
               << std::endl;
+
+    sycl_ls();
 
     print_device_info(queue);
 
