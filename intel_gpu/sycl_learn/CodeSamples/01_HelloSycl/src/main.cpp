@@ -7,6 +7,7 @@
 
 std::vector<float> vec_add(std::vector<float> &a, std::vector<float> &b, sycl::queue &queue)
 {
+    std::cout << "== Call sycl kernel: vec_add" << std::endl;
     std::vector<float> sum(a.size());
     // Compute the first n_items values in a well known sequence
     size_t n_items = a.size();
@@ -62,6 +63,33 @@ std::vector<float> vec_add(std::vector<float> &a, std::vector<float> &b, sycl::q
 //     return dst;
 // }
 
+void print_device_info(sycl::queue queue) {
+    std::cout << "Device info:" << std::endl;
+
+#define PRINT_ITM(ITM) std::cout << "  == " << #ITM << " : " << queue.get_device().get_info<sycl::info::device::ITM>() << std::endl
+    PRINT_ITM(name);
+    PRINT_ITM(vendor);
+    PRINT_ITM(vendor_id);
+    PRINT_ITM(driver_version);
+    PRINT_ITM(version);
+
+    PRINT_ITM(max_compute_units);
+    PRINT_ITM(max_work_item_dimensions);
+    PRINT_ITM(max_work_group_size);
+    PRINT_ITM(max_num_sub_groups);
+
+    PRINT_ITM(max_clock_frequency);
+    PRINT_ITM(max_mem_alloc_size);
+    PRINT_ITM(max_samplers);
+    PRINT_ITM(max_parameter_size);
+    PRINT_ITM(global_mem_cache_line_size);
+    PRINT_ITM(global_mem_cache_size);
+    PRINT_ITM(global_mem_size);
+    PRINT_ITM(local_mem_size);
+
+    std::cout << std::endl;
+}
+
 int main(int argc, char *argv[])
 {
     // sycl::queue queue{sycl::default_selector_v};
@@ -73,6 +101,9 @@ int main(int argc, char *argv[])
               << ", Backend: " << queue.get_backend()
               << std::endl;
 
+    print_device_info(queue);
+
+    std::cout << "== prepare input." << std::endl;
     std::vector<float> a, b, expected;
     for (int i = 0; i < 10000; i++)
     {
@@ -84,15 +115,16 @@ int main(int argc, char *argv[])
     auto result = vec_add(a, b, queue);
     // result = vec_div_4(result, queue);
 
+    std::cout << "== compare result and expected." << std::endl;
     bool result_is_expected = true;
     for (int i = 0; i < 10000; i++)
     {
         if (fabs(expected[i] - result[i]) > 0.0001f)
         {
-            std::cout << "== Result [" << i << "] diff: " << fabs(expected[i] - result[i]) << ", result=" << result[i] << std::endl;
+            std::cout << "  == Result [" << i << "] diff: " << fabs(expected[i] - result[i]) << ", result=" << result[i] << std::endl;
             result_is_expected = false;
         }
     }
-    std::cout << "Done, result is " << (result_is_expected ? "expected" : "not expected") << std::endl;
+    std::cout << "== Done, result is " << (result_is_expected ? "expected" : "not expected") << std::endl;
     return 0;
 }
