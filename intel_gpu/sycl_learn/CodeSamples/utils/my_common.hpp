@@ -6,9 +6,10 @@
 #include <memory>
 #include <fstream>
 #include <vector>
+#include <cmath>
 
 #include "my_log.hpp"
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 // Check all ze function return.
 #define CHECK_RET(RET)                                                                                                      \

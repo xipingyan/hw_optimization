@@ -1,6 +1,6 @@
 #pragma once
 
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 #include <my_log.hpp>
 
@@ -35,14 +35,37 @@ inline void sycl_ls()
 {
     for (auto platform : sycl::platform::get_platforms())
     {
+        static constexpr auto INTEL_PLATFORM_VENDOR = "Intel(R) Corporation";
+        static constexpr auto INTEL_PLATFORM_NAME = "Intel(R) Level-Zero";
+        if (platform.get_info<sycl::info::platform::vendor>() != INTEL_PLATFORM_VENDOR)
+        {
+            std::cout << "Platform is ignored: because vendor is: "
+                      << platform.get_info<sycl::info::platform::vendor>()
+                      << std::endl;
+            continue;
+        }
+        if (platform.get_info<sycl::info::platform::name>() != INTEL_PLATFORM_NAME)
+        {
+            std::cout << "Platform is ignored: because name is: "
+                      << platform.get_info<sycl::info::platform::name>()
+                      << std::endl;
+            continue;
+        }
+
         std::cout << "Platform: "
-                  << platform.get_info<sycl::info::platform::name>()
+                  << platform.get_info<sycl::info::platform::name>() << ", vendor: "
+                  << platform.get_info<sycl::info::platform::vendor>()
                   << std::endl;
 
         for (auto device : platform.get_devices())
         {
             std::cout << "\tDevice: "
                       << device.get_info<sycl::info::device::name>()
+                      << std::endl;
+            
+            sycl::queue queue(device);
+            std::cout << "\tDevice's queuebackend: "
+                      << queue.get_backend()
                       << std::endl;
         }
     }

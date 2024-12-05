@@ -7,7 +7,7 @@
 
 #include <iostream>
 #include <cmath>
-#include <CL/sycl.hpp>
+#include <sycl/sycl.hpp>
 
 // OpenCL Kernel
 auto add_ocl_kernel_add_1(cl_context ocl_ctx, cl_device_id ocl_dev, sycl::context ctx, sycl::buffer<int, 1>& buffer, size_t size, sycl::queue& q) {
@@ -74,8 +74,8 @@ int main()
     sycl::device dev(sycl::gpu_selector_v);
     sycl::context ctx = sycl::context(dev);
 
-    auto ocl_dev = sycl::get_native<cl::sycl::backend::opencl, sycl::device>(dev);
-    auto ocl_ctx = sycl::get_native<cl::sycl::backend::opencl, sycl::context>(ctx);
+    auto ocl_dev = sycl::get_native<sycl::backend::opencl, sycl::device>(dev);
+    auto ocl_ctx = sycl::get_native<sycl::backend::opencl, sycl::context>(ctx);
 
     cl_int err = CL_SUCCESS;
     cl_command_queue ocl_queue = clCreateCommandQueueWithProperties(ocl_ctx, ocl_dev, 0, &err);
