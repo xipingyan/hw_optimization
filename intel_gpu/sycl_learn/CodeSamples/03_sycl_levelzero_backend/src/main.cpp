@@ -298,9 +298,19 @@ int main()
 
     // input param:
     size_t length = 1000;
+#define USM_BUF_QUEUE 0
+#if USM_BUF_QUEUE
     auto X = sycl::malloc_shared<int32_t>(length, queue);
     auto Y = sycl::malloc_shared<int32_t>(length, queue);
     auto Z = sycl::malloc_shared<int32_t>(length, queue);
+#else
+    sycl::context ctx = queue.get_context();
+    sycl::device dev = queue.get_device();
+    auto X = sycl::malloc_shared<int32_t>(length, dev, ctx);
+    auto Y = sycl::malloc_shared<int32_t>(length, dev, ctx);
+    auto Z = sycl::malloc_shared<int32_t>(length, dev, ctx);
+#endif
+
     auto expected = std::vector<int32_t>(length);
     for (size_t i = 0; i < length; i++)
     {
@@ -373,6 +383,16 @@ int main()
             is_expected = false;
         }
     }
+
+#if USM_BUF_QUEUE
+    sycl::free(X, queue);
+    sycl::free(Y, queue);
+    sycl::free(Z, queue);
+#else
+    sycl::free(X, ctx);
+    sycl::free(Y, ctx);
+    sycl::free(Z, ctx);
+#endif
 
     std::cout << (is_expected ? "Success!\n" : "Fail!\n");
     return 0;
