@@ -26,6 +26,8 @@ namespace syclex = sycl::ext::oneapi::experimental;
 #include "oneapi/dnnl/dnnl_debug.h"
 #include "oneapi/dnnl/dnnl_sycl.hpp"
 
+#include "my_common.hpp"
+
 #define ENABLE_LEVELZERO 0
 #if ENABLE_LEVELZERO
 #include <level_zero/ze_api.h>
@@ -308,7 +310,7 @@ int main()
     sycl::device dev = queue.get_device();
     auto X = sycl::malloc_shared<int32_t>(length, dev, ctx);
     auto Y = sycl::malloc_shared<int32_t>(length, dev, ctx);
-    auto Z = sycl::malloc_shared<int32_t>(length, dev, ctx);
+    int32_t *Z = (int32_t*)(sycl::malloc_shared(length * sizeof(int32_t), dev, ctx));
 #endif
 
     auto expected = std::vector<int32_t>(length);
@@ -383,6 +385,11 @@ int main()
             is_expected = false;
         }
     }
+
+    sycl::device get_dev = sycl::get_pointer_device(X, ctx);
+    auto y_type = sycl::get_pointer_type(Y, ctx);
+    std::cout << "  == Check original device and queryed device from buffer pointer is same: " << (get_dev == dev) << std::endl;
+    std::cout << "  == Query Y usm alloc type: " << usm_alloc_2_str(y_type) << std::endl;
 
 #if USM_BUF_QUEUE
     sycl::free(X, queue);

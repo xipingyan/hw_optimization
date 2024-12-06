@@ -65,3 +65,19 @@ inline size_t tm_diff_ms(std::chrono::time_point<std::chrono::high_resolution_cl
 {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
 }
+
+inline std::string usm_alloc_2_str(sycl::usm::alloc mem_type)
+{
+	switch (mem_type)
+	{
+	case sycl::usm::alloc::device:
+		return "sycl::usm::alloc::device";
+	case sycl::usm::alloc::host:
+		return "sycl::usm::alloc::host";
+	case sycl::usm::alloc::shared:
+		return "sycl::usm::alloc::shared";
+	case sycl::usm::alloc::unknown:
+		return "sycl::usm::alloc::unknown";
+	}
+	return std::string();
+}
