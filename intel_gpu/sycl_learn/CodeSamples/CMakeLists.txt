@@ -14,3 +14,6 @@ add_subdirectory(04_USM_TerseSyntax)
 add_subdirectory(05_Sycl_Concept)
 add_subdirectory(06_Sycl_Extension_SIMD)
 add_subdirectory(07_ExecuteOrder)
+
+# Test my implementation kernel.
+add_subdirectory(kernel_01_MatMul)
