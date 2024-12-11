@@ -25,6 +25,10 @@ DPC++ Guide: https://www.intel.com/content/www/us/en/docs/dpcpp-cpp-compiler/get
 
 # Build Samples and Run
 
+#### Dependencies
+
+    sudo apt-get install libopenblas-dev
+
 #### Windows(Not work)
 
     cmake -DCMAKE_C_COMPILER=icx -DCMAKE_CXX_COMPILER=icx -G"Visual Studio 16" ..

@@ -10,15 +10,15 @@ struct MMParamsInput {
     using PTR = std::shared_ptr<MMParamsInput>;
     float *_a = nullptr; // input   [M*N]
     float *_b = nullptr; // Weight  [N*K]
-    size_t _m = 0, _n = 0, _k = 0;
+    size_t _m = 0, _k = 0, _n = 0;
 
     MMParamsInput() = delete;
-    MMParamsInput(size_t m, size_t n, size_t k) : _m(m), _n(n), _k(k)
+    MMParamsInput(size_t m, size_t k, size_t n) : _m(m), _n(n), _k(k)
     {
         // init params with random data.
-        _a = (float*)malloc(sizeof(float) * m * n);
+        _a = (float*)malloc(sizeof(float) * m * k);
         CHECK_MALLOC(_a);
-        _b = (float*) malloc(sizeof(float) * n * k);
+        _b = (float*) malloc(sizeof(float) * k * n);
         CHECK_MALLOC(_b);
         init_random();
     }
@@ -36,20 +36,20 @@ struct MMParamsInput {
         std::random_device rd;
         std::mt19937 gen(rd());
         std::uniform_real_distribution<float> dis(0, 1); // uniform distribution between 0 and 1
-        for (size_t i = 0; i < _m * _n; i++)
+        for (size_t i = 0; i < _m * _k; i++)
         {
             // std::cout << dis(gen) << ' ';
             _a[i] = dis(gen);
         }
-        for (size_t i = 0; i < _n * _k; i++)
+        for (size_t i = 0; i < _k * _n; i++)
         {
             _b[i] = dis(gen);
         }
     }
 
-    static PTR create(int m, int n, int k)
+    static PTR create(int m, int k, int n)
     {
-        return std::make_shared<MMParamsInput>(m, n, k);
+        return std::make_shared<MMParamsInput>(m, k, n);
     }
 };
 
@@ -57,12 +57,12 @@ struct MMParamsOutput
 {
     using PTR = std::shared_ptr<MMParamsOutput>;
     float *_c = nullptr; // output  [M*K]
-    size_t _m = 0, _k = 0;
+    size_t _m = 0, _n = 0;
 
     MMParamsOutput() = delete;
-    MMParamsOutput(size_t m, size_t k) : _m(m), _k(k)
+    MMParamsOutput(size_t m, size_t n) : _m(m), _n(n)
     {
-        _c = (float *)malloc(sizeof(float) * m * k);
+        _c = (float *)malloc(sizeof(float) * m * n);
         CHECK_MALLOC(_c);
         init_random();
     }
@@ -75,19 +75,21 @@ struct MMParamsOutput
 
     void init_random()
     {
-        for (size_t i = 0; i < _m * _k; i++)
+        for (size_t i = 0; i < _m * _n; i++)
         {
             _c[i] = 0.0f;
         }
     }
 
-    static PTR create(int m, int k)
+    static PTR create(int m, int n)
     {
-        return std::make_shared<MMParamsOutput>(m, k);
+        return std::make_shared<MMParamsOutput>(m, n);
     }
 };
 
+// Reference implementation.
 float matmal_kernel_ref(MMParamsInput::PTR input, MMParamsOutput::PTR output);
+float matmal_kernel_openblas(MMParamsInput::PTR input, MMParamsOutput::PTR output);
 
 float matmal_kernel_1(sycl::queue &q, MMParamsInput::PTR input, MMParamsOutput::PTR output, int group_x = 16, int group_y = 16);
 

@@ -15,8 +15,12 @@ find_package(IntelSYCL REQUIRED)
 #set(CMAKE_CXX_COMPILER dpcpp)
 find_package(OpenMP)
 
+# sudo apt-get install libopenblas-dev
+find_package(OpenBLAS PATHS /usr/lib/x86_64-linux-gnu/openblas-pthread/cmake/openblas/)
+
 include_directories(
 	${Utils}
+	${OpenBLAS_INCLUDE_DIRS}
 	)
 
 file(GLOB SRC 
@@ -28,4 +32,7 @@ add_executable(${PRJ_NAME}
 
 add_sycl_to_target(TARGET ${PRJ_NAME}  SOURCES ${SRC} )
 
-target_link_libraries(${PRJ_NAME} PRIVATE OpenMP::OpenMP_CXX)
+target_link_libraries(${PRJ_NAME} PRIVATE 
+	OpenMP::OpenMP_CXX
+	${OpenBLAS_LIBRARIES}
+	)

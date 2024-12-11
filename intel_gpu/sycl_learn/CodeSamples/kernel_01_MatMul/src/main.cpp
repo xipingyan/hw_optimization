@@ -5,7 +5,7 @@
 #include <thread>
 
 #include "my_common.hpp"
-#include "my_sycl_kernel.hpp"
+#include "private.hpp"
 
 static bool bCmpAcc = std::getenv("CMP_ACC");
 
@@ -18,24 +18,39 @@ void test_matmul_01(sycl::queue queue)
     std::vector<float> durations;
     for (auto mm_sz : mm_szs)
     {
-        auto inputs = MMParamsInput::create(512, 256, 512);
+        auto inputs = MMParamsInput::create(512, 512, 512);
         auto output_ref = MMParamsOutput::create(512, 512);
-        auto output = MMParamsOutput::create(512, 512);
+        auto output_cpu = MMParamsOutput::create(512, 512);
+        auto output_openblas = MMParamsOutput::create(512, 512);
+        auto output_sycl_gpu_1 = MMParamsOutput::create(512, 512);
         int group_x = 16;
         int group_y = 16;
 
-        if (bCmpAcc)
+        if (bCmpAcc) {
             matmal_kernel_ref(inputs, output_ref);
+            matmal_kernel_openblas(inputs, output_openblas);
+        }
+
+        sycl::queue queue_cpu(sycl::cpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
+        matmal_kernel_1(queue_cpu, inputs, output_cpu, group_x, group_y);
+
+        sycl::queue queue_gpu(sycl::gpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
 
         float min_tm = std::numeric_limits<float>::max();
         for (auto i = 0; i < 1; i++)
         {
-            min_tm = fmin(min_tm, matmal_kernel_1(queue, inputs, output, group_x, group_y));
+            min_tm = fmin(min_tm, matmal_kernel_1(queue_gpu, inputs, output_sycl_gpu_1, group_x, group_y));
             if (bCmpAcc && i == 0)
             {
                 std::cout << "== Compare with ref" << std::endl;
-                auto r = is_same(output, output_ref);
-                std::cout << "  is same = " << r << std::endl;
+                auto r_gpu_vs_ref = is_same(output_sycl_gpu_1, output_ref);
+                std::cout << "  r_gpu_vs_ref = " << r_gpu_vs_ref << std::endl;
+                auto r_cpu_vs_ref = is_same(output_cpu, output_ref);
+                std::cout << "  r_cpu_vs_ref = " << r_cpu_vs_ref << std::endl;
+                auto r_cpu_vs_gpu = is_same(output_cpu, output_sycl_gpu_1);
+                std::cout << "  r_cpu_vs_gpu = " << r_cpu_vs_gpu << std::endl;
+                auto r_ref_vs_openblas = is_same(output_ref, output_openblas);
+                std::cout << "  r_ref_vs_openblas = " << r_ref_vs_openblas << std::endl;
             }
         }
         durations.push_back(min_tm);
