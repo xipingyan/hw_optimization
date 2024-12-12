@@ -1,6 +1,7 @@
 #include <typeinfo>
 
 #include "private.hpp"
+#include "my_common.hpp"
 
 // Version:01, My original implementation.
 // Reference: https://github.com/intel/llvm/issues/8163
@@ -11,16 +12,14 @@ float matmal_kernel_1(sycl::queue &q, MMParamsInput::PTR input, MMParamsOutput::
     const size_t &K = input->_k;
     const size_t &N = input->_n;
 
-    std::cout << "== Kernel:      " << __FUNCTION__ << std::endl;
-    std::cout << "Input A         = " << M << " x " << K << std::endl;
-    std::cout << "Input B         = " << K << " x " << N << std::endl;
-    std::cout << "Output C        = " << M << " x " << N << std::endl;
-    std::cout << "WORK_GROUP_SIZE = " << group_x << " x " << group_y << std::endl;
+    std::cout << "== Kernel: " << __FUNCTION__ << ", q backend: " << q.get_backend() << std::endl;
+    std::cout << "  Input A  = [" << M << " x " << K << "], B = [" << K << " x " << N << "]" << std::endl;
+    std::cout << "  Output C = [" << M << " x " << N << "]" << std::endl;
+    std::cout << "  WORK_GROUP_SIZE = " << group_x << " x " << group_y << std::endl;
 
     assert(M == output->_m);
     assert(N == output->_n);
 
-    // sycl::buffer a(input->_a), b(input->_b), c(input->_c);
     sycl::buffer a(input->_a, sycl::range{M * K});
     sycl::buffer b(input->_b, sycl::range{K * N});
     sycl::buffer c(output->_c, sycl::range{M * N});
@@ -48,9 +47,9 @@ float matmal_kernel_1(sycl::queue &q, MMParamsInput::PTR input, MMParamsOutput::
          e.get_profiling_info<sycl::info::event_profiling::command_start>());
     auto tm = kernel_duration / 1e+6;
 
-    auto cpu_dur = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+    auto cpu_dur = tm_diff_ms(t1, t2);
 
-    std::cout << "Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
+    std::cout << "  Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
               << std::endl;
     return tm;
 }
@@ -83,9 +82,9 @@ float add_kernel_1(sycl::queue &q, float *data, size_t len, float &output, int g
          e.get_profiling_info<sycl::info::event_profiling::command_start>());
     auto tm = kernel_duration / 1e+6;
 
-    auto cpu_dur = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+    auto cpu_dur = tm_diff_ms(t1, t2);
 
-    std::cout << "Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
+    std::cout << "  Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
               << std::endl;
     output = outp[0];
     return tm;

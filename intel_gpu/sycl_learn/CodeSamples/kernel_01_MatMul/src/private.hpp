@@ -55,26 +55,33 @@ struct MMParamsInput {
 
     void print()
     {
-        std::cout << " == input a:" << std::endl;
-        for (size_t i = 0; i < std::min((size_t)3, _m); i++)
+        auto print_matrix = [](float *data, size_t m, size_t n)
         {
-            std::cout << "  ";
-            for (size_t j = 0; j < std::min((size_t)3u, _k); j++)
+            for (size_t i = 0; i < m; i++)
             {
-                std::cout << _a[i * _k + j] << ", ";
+                if (i > 6u)
+                {
+                    std::cout << "  ,\n  ,\n";
+                    break;
+                }
+                std::cout << "  ";
+                for (size_t j = 0; j < n; j++)
+                {
+                    if (j > 6u)
+                    {
+                        std::cout << ", , ,";
+                        break;
+                    }
+                    std::cout << data[i * n + j] << ", ";
+                }
+                std::cout << std::endl;
             }
-            std::cout << std::endl;
-        }
-        std::cout << " == input b:" << std::endl;
-        for (size_t i = 0; i < std::min((size_t)3u, _k); i++)
-        {
-            std::cout << "  ";
-            for (size_t j = 0; j < std::min((size_t)3u, _n); j++)
-            {
-                std::cout << _b[i * _n + j] << ", ";
-            }
-            std::cout << std::endl;
-        }
+        };
+        
+        std::cout << " == input A:" << std::endl;
+        print_matrix(_a, _m, _k);
+        std::cout << " == input B:" << std::endl;
+        print_matrix(_b, _k, _n);
     }
 };
 

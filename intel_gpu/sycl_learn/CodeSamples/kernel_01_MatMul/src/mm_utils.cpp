@@ -15,11 +15,12 @@ bool is_same(std::string prefix, MMParamsOutput::PTR output1, MMParamsOutput::PT
             {
                 std::cout << prefix << ", [" << i << ", " << j << "], diff = " << fabs(a_val - b_val) << ", output1 = " << a_val << ", output2 = " << b_val << std::endl;
                 bsame = false;
-                // return false;
+                return false;
             }
         }
     }
 
-    std::cout << prefix << ", is same." << std::endl;
+    if (bsame)
+        std::cout << prefix << ", is same." << std::endl;
     return true;
 }

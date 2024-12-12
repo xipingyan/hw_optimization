@@ -7,27 +7,29 @@
 #include "my_common.hpp"
 #include "private.hpp"
 
-static bool bCmpAcc = std::getenv("CMP_ACC");
+static bool bCmpAcc = std::getenv("ACC");
 
 void test_matmul_01(sycl::queue queue)
 {
     std::cout << "==========================" << std::endl;
     std::cout << "== Start: " << __FUNCTION__ << std::endl;
     // std::vector<size_t> mm_szs = {512, 1024, 2048, 4096};
-    std::vector<size_t> mm_szs = {512};
+    std::vector<size_t> mm_szs = {4096};
     std::vector<float> durations;
+    int group_x = 16;
+    int group_y = 16;
+    int iter = 8;
+
     for (auto mm_sz : mm_szs)
     {
-        auto inputs = MMParamsInput::create(mm_sz, 512, mm_sz);
+        auto inputs = MMParamsInput::create(mm_sz, 4096, mm_sz);
         auto output_ref = MMParamsOutput::create(mm_sz, mm_sz);
         auto output_cpu = MMParamsOutput::create(mm_sz, mm_sz);
         auto output_openblas = MMParamsOutput::create(mm_sz, mm_sz);
         auto output_sycl_gpu_1 = MMParamsOutput::create(mm_sz, mm_sz);
-        int group_x = 1;
-        int group_y = 1;
 
         if (bCmpAcc) {
-            matmal_kernel_ref(inputs, output_ref);
+            // matmal_kernel_ref(inputs, output_ref);
             matmal_kernel_openblas(inputs, output_openblas);
         }
 
@@ -45,17 +47,18 @@ void test_matmul_01(sycl::queue queue)
                 std::cout << "==========================================" << std::endl;
                 inputs->print();
                 std::cout << "== Compare with ref" << std::endl;
-                // is_same("  gpu_vs_ref", output_sycl_gpu_1, output_ref);
+                // is_same("  gpu_vs_ref", output_sycl_gpu_1, output_ref, 1.0e-04);
                 // is_same("  cpu_vs_ref", output_cpu, output_ref);
                 // is_same("  cpu_vs_gpu", output_cpu, output_sycl_gpu_1);
-                is_same("  ref_vs_openblas", output_ref, output_openblas, 1e-6f);
-                // is_same("  gpu_vs_openblas", output_sycl_gpu_1, output_openblas, 1e-6f);
+                // is_same("  ref_vs_openblas", output_ref, output_openblas, 1.0e-04);
+                is_same("  gpu_vs_openblas", output_sycl_gpu_1, output_openblas, 1.0e-04);
             }
         }
         durations.push_back(min_tm);
     }
 
     std::cout << "=================================" << std::endl;
+    std::cout << "== GPU loop " << iter << " , min infer time: " << std::endl;
     for (size_t i = 0; i < mm_szs.size(); i++)
     {
         std::cout << "== matmul size = " << mm_szs[i] << ", group size = 16, min tm = " << durations[i] << " ms" << std::endl;
@@ -123,7 +126,7 @@ int main()
 {
     std::cout << "**********************************" << std::endl;
     std::cout << " Compare accuracy with reference result." << std::endl;
-    std::cout << " $ export CMP_ACC=1" << std::endl;
+    std::cout << " $ export ACC=1" << std::endl;
     std::cout << "**********************************" << std::endl;
 
     sycl::queue queue(sycl::gpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
@@ -135,8 +138,8 @@ int main()
 
     DEBUG_LOG << "== prepare input." << std::endl;
 
-    // test_matmul_01(queue);
-    test_add(queue);
+    test_matmul_01(queue);
+    // test_add(queue);
 
     return 0;
 }
