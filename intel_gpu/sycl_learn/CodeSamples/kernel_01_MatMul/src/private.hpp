@@ -1,4 +1,5 @@
 #pragma once
+#include <algorithm>
 #include <random>
 #include <sycl/sycl.hpp>
 
@@ -51,6 +52,30 @@ struct MMParamsInput {
     {
         return std::make_shared<MMParamsInput>(m, k, n);
     }
+
+    void print()
+    {
+        std::cout << " == input a:" << std::endl;
+        for (size_t i = 0; i < std::min((size_t)3, _m); i++)
+        {
+            std::cout << "  ";
+            for (size_t j = 0; j < std::min((size_t)3u, _k); j++)
+            {
+                std::cout << _a[i * _k + j] << ", ";
+            }
+            std::cout << std::endl;
+        }
+        std::cout << " == input b:" << std::endl;
+        for (size_t i = 0; i < std::min((size_t)3u, _k); i++)
+        {
+            std::cout << "  ";
+            for (size_t j = 0; j < std::min((size_t)3u, _n); j++)
+            {
+                std::cout << _b[i * _n + j] << ", ";
+            }
+            std::cout << std::endl;
+        }
+    }
 };
 
 struct MMParamsOutput
@@ -93,4 +118,7 @@ float matmal_kernel_openblas(MMParamsInput::PTR input, MMParamsOutput::PTR outpu
 
 float matmal_kernel_1(sycl::queue &q, MMParamsInput::PTR input, MMParamsOutput::PTR output, int group_x = 16, int group_y = 16);
 
-bool is_same(MMParamsOutput::PTR output1, MMParamsOutput::PTR output2, float T = 1e-8f);
+float add_kernel_1(sycl::queue &q, float *data, size_t len, float &output, int group_x = 1);
+float add_kernel_1_f16(sycl::queue &q, sycl::half *data, size_t len, sycl::half &output, int group_x);
+
+bool is_same(std::string prefix, MMParamsOutput::PTR output1, MMParamsOutput::PTR output2, float T = 1e-8f, bool trans_b = false);

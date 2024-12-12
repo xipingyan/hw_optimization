@@ -18,13 +18,13 @@ void test_matmul_01(sycl::queue queue)
     std::vector<float> durations;
     for (auto mm_sz : mm_szs)
     {
-        auto inputs = MMParamsInput::create(512, 512, 512);
-        auto output_ref = MMParamsOutput::create(512, 512);
-        auto output_cpu = MMParamsOutput::create(512, 512);
-        auto output_openblas = MMParamsOutput::create(512, 512);
-        auto output_sycl_gpu_1 = MMParamsOutput::create(512, 512);
-        int group_x = 16;
-        int group_y = 16;
+        auto inputs = MMParamsInput::create(mm_sz, 512, mm_sz);
+        auto output_ref = MMParamsOutput::create(mm_sz, mm_sz);
+        auto output_cpu = MMParamsOutput::create(mm_sz, mm_sz);
+        auto output_openblas = MMParamsOutput::create(mm_sz, mm_sz);
+        auto output_sycl_gpu_1 = MMParamsOutput::create(mm_sz, mm_sz);
+        int group_x = 1;
+        int group_y = 1;
 
         if (bCmpAcc) {
             matmal_kernel_ref(inputs, output_ref);
@@ -42,15 +42,14 @@ void test_matmul_01(sycl::queue queue)
             min_tm = fmin(min_tm, matmal_kernel_1(queue_gpu, inputs, output_sycl_gpu_1, group_x, group_y));
             if (bCmpAcc && i == 0)
             {
+                std::cout << "==========================================" << std::endl;
+                inputs->print();
                 std::cout << "== Compare with ref" << std::endl;
-                auto r_gpu_vs_ref = is_same(output_sycl_gpu_1, output_ref);
-                std::cout << "  r_gpu_vs_ref = " << r_gpu_vs_ref << std::endl;
-                auto r_cpu_vs_ref = is_same(output_cpu, output_ref);
-                std::cout << "  r_cpu_vs_ref = " << r_cpu_vs_ref << std::endl;
-                auto r_cpu_vs_gpu = is_same(output_cpu, output_sycl_gpu_1);
-                std::cout << "  r_cpu_vs_gpu = " << r_cpu_vs_gpu << std::endl;
-                auto r_ref_vs_openblas = is_same(output_ref, output_openblas);
-                std::cout << "  r_ref_vs_openblas = " << r_ref_vs_openblas << std::endl;
+                // is_same("  gpu_vs_ref", output_sycl_gpu_1, output_ref);
+                // is_same("  cpu_vs_ref", output_cpu, output_ref);
+                // is_same("  cpu_vs_gpu", output_cpu, output_sycl_gpu_1);
+                is_same("  ref_vs_openblas", output_ref, output_openblas, 1e-6f);
+                // is_same("  gpu_vs_openblas", output_sycl_gpu_1, output_openblas, 1e-6f);
             }
         }
         durations.push_back(min_tm);
@@ -61,6 +60,63 @@ void test_matmul_01(sycl::queue queue)
     {
         std::cout << "== matmul size = " << mm_szs[i] << ", group size = 16, min tm = " << durations[i] << " ms" << std::endl;
     }
+}
+
+// Verify accuracy, sycl gpu vs cpu
+// Conclusion:
+// ref_f32_vs_gpu_f32 is same. 
+// ref_f16_vs_gpu_f16 is same. 
+// ref_f32_vs_gpu_f16 is diff, a = 504.624, b = 505, diff = 0.375671
+void test_add(sycl::queue queue) {
+    std::cout << "==========================" << std::endl;
+    std::cout << "== Start: " << __FUNCTION__ << std::endl;
+
+    int len = 1024;
+    float *arr = new float[len];
+    sycl::half *arr_fp16 = new sycl::half[len];
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<float> dis(0, 1); // uniform distribution between 0 and 1
+    for (size_t i = 0; i < len; i++)
+    {
+        arr[i] = dis(gen);
+        arr_fp16[i] = arr[i];
+    }
+
+    // Referenece
+    float rslt_ref = 0;
+    sycl::half rslt_ref_fp16 = 0;
+    for (size_t i = 0; i < len; i++)
+    {
+        rslt_ref += arr[i];
+        rslt_ref_fp16 += arr_fp16[i];
+    }
+
+    float rslt_gpu = 0;
+    add_kernel_1(queue, arr, len, rslt_gpu, 16);
+    sycl::half rslt_gpu_f16 = 0;
+    add_kernel_1_f16(queue, arr_fp16, len, rslt_gpu_f16, 16);
+
+    float ref_vs_gpu = fabs(rslt_ref - rslt_gpu);
+    float ref_vs_gpuf16 = fabs(rslt_ref_fp16 - rslt_gpu_f16);
+
+    auto cmp = [](std::string prefix, float a, float b)
+    {
+        float diff = fabs(a - b);
+        if (diff > 0)
+        {
+            std::cout << prefix << " is diff, a = " << a << ", b = " << b << ", diff = " << diff << std::endl;
+        }
+        else
+        {
+            std::cout << prefix << " is same. " << std::endl;
+        }
+    };
+
+    cmp("ref_f32_vs_gpu_f32", rslt_ref, rslt_gpu);
+    cmp("ref_f16_vs_gpu_f16", rslt_ref_fp16, rslt_gpu_f16);
+    cmp("ref_f32_vs_gpu_f16", rslt_ref, rslt_gpu_f16);
 }
 
 int main()
@@ -79,7 +135,8 @@ int main()
 
     DEBUG_LOG << "== prepare input." << std::endl;
 
-    test_matmul_01(queue);
+    // test_matmul_01(queue);
+    test_add(queue);
 
     return 0;
 }

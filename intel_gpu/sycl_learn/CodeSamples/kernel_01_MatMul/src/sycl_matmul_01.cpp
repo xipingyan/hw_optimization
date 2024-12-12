@@ -1,3 +1,5 @@
+#include <typeinfo>
+
 #include "private.hpp"
 
 // Version:01, My original implementation.
@@ -48,6 +50,81 @@ float matmal_kernel_1(sycl::queue &q, MMParamsInput::PTR input, MMParamsOutput::
 
     auto cpu_dur = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
 
-    std::cout << "Kernel Execution Time: " << tm << " ms, cpu time: "<< cpu_dur <<" ms\n" << std::endl;
+    std::cout << "Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
+              << std::endl;
+    return tm;
+}
+
+float add_kernel_1(sycl::queue &q, float *data, size_t len, float &output, int group_x)
+{
+    std::cout << "== Kernel:      " << __FUNCTION__ << std::endl;
+
+    // sycl::buffer a(input->_a), b(input->_b), c(input->_c);
+    sycl::buffer a(data, sycl::range{len});
+    auto outp = sycl::malloc_shared<float>(len, q);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto e = q.submit([&](sycl::handler &h)
+                      {
+    auto A = a.get_access<sycl::access::mode::read>(h);
+
+    h.parallel_for<class my_add_1>(sycl::range<1>(len), [=](sycl::id<1> i){
+        float tmp = 0;
+        for(size_t idx = 0; idx<len; idx++) {
+            tmp += A[idx];
+        }
+        outp[i] = tmp;
+                                                    }); });
+    e.wait();
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    auto kernel_duration =
+        (e.get_profiling_info<sycl::info::event_profiling::command_end>() -
+         e.get_profiling_info<sycl::info::event_profiling::command_start>());
+    auto tm = kernel_duration / 1e+6;
+
+    auto cpu_dur = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+
+    std::cout << "Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
+              << std::endl;
+    output = outp[0];
+    return tm;
+}
+
+float add_kernel_1_f16(sycl::queue &q, sycl::half *data, size_t len, sycl::half &output, int group_x)
+{
+    std::cout << "== Kernel:      " << __FUNCTION__ << std::endl;
+
+    // sycl::buffer a(input->_a), b(input->_b), c(input->_c);
+    sycl::buffer a(data, sycl::range{len});
+    auto outp = sycl::malloc_shared<sycl::half>(len, q);
+
+    auto t1 = std::chrono::high_resolution_clock::now();
+    auto e = q.submit([&](sycl::handler &h)
+                      {
+    auto A = a.get_access<sycl::access::mode::read>(h);
+
+    h.parallel_for<class my_add_1_f16>(sycl::range<1>(len), [=](sycl::id<1> i) { 
+        sycl::half tmp = 0;
+        for(size_t idx = 0; idx<len; idx++) {
+            tmp += A[idx];
+        }
+        outp[i] = tmp;}); 
+    });
+
+    e.wait();
+
+    auto t2 = std::chrono::high_resolution_clock::now();
+
+    auto kernel_duration =
+        (e.get_profiling_info<sycl::info::event_profiling::command_end>() -
+         e.get_profiling_info<sycl::info::event_profiling::command_start>());
+    auto tm = kernel_duration / 1e+6;
+
+    auto cpu_dur = std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+
+    std::cout << "Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
+              << std::endl;
+    output = outp[0];
     return tm;
 }

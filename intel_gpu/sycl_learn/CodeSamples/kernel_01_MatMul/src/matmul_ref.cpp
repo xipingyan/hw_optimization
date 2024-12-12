@@ -53,8 +53,8 @@ float matmal_kernel_openblas(MMParamsInput::PTR input, MMParamsOutput::PTR outpu
     float *C = output->_c;
 
     auto t1 = std::chrono::high_resolution_clock::now();
-    // cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m, n, k, 1, A, m, B, k, 0, C, m);
-    cblas_sgemm(CblasColMajor, CblasNoTrans, CblasNoTrans, m, n, k, 1, A, m, B, k, 0, C, m);
+    cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, k, n, 1, A, m, B, k, 0, C, m);
+    // cblas_sgemm(CblasRowMajor, CblasNoTrans, CblasNoTrans, m, k, n, 1, B, k, A, m, 0, C, m);
     auto t2 = std::chrono::high_resolution_clock::now();
     auto cpu_dur = tm_diff_ms(t1, t2);
     return cpu_dur;
