@@ -100,6 +100,67 @@ void fun_2_usm()
     End_Test();
 }
 
+// USM, host memory and device memory.
+void fun_2_1_usm()
+{
+    Start_Test();
+    size_t length = 1024;
+
+    sycl::queue q(sycl::gpu_selector_v);
+    print_device_beckend(q);
+
+    auto X_host = sycl::malloc_host<float>(length, q);
+    auto X_device = sycl::malloc_device<float>(length, q);
+    auto Y_share = sycl::malloc_shared<float>(length, q);
+    auto Z_host = sycl::malloc_host<float>(length, q);
+    auto Z_device = sycl::malloc_device<float>(length, q);
+
+    for (size_t i = 0; i < length; i++)
+    {
+        X_host[i] = xval;
+        Y_share[i] = yval;
+        Z_host[i] = zval;
+    }
+    std::cout << "Z_host=" << Z_host[0] << std::endl;
+
+    try
+    {
+        const float A(aval);
+
+        // Memory copy: way 1
+        // cudaMemcpy(X_device, X, N*sizeof(float), cudaMemcpyHostToDevice);
+        // q.submit([&](sycl::handler &cgh)
+        //          {
+        //             // untyped API: cgh.memcpy(X_device, X, length * sizeof(float));
+        //             // or typed API
+        //             cgh.copy(X_device, X_host, length);
+        //             cgh.copy(Z_device, Z_host, length); });
+
+        // Memory copy: way 2
+        q.copy(X_device, X_host, length);
+        q.copy(Z_device, Z_host, length);
+        std::cout << "Z_host=" << Z_host[0] << std::endl;
+
+        // USM: still based on pointer.
+        q.submit([&](sycl::handler &h)
+                 { h.parallel_for<class fun_2_1_usm>(sycl::range<1>{length}, [=](sycl::id<1> i)
+                                                     { Z_device[i] += A * X_device[i] + Y_share[i]; }); });
+        q.wait();
+        // I don't know why copy will auto trigger.
+        // q.copy(Z_host, Z_device, length);
+        std::cout << "Z_host=" << Z_host[0] << std::endl;
+    }
+    catch (sycl::exception &e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+
+    std::vector<float> h_expected(length, correct);
+    auto r = check_result<float>(Z_host, h_expected.data(), length, FLT_MIN);
+    std::cout << " Result is " << (r ? "expected. " : "not expected.") << std::endl;
+    End_Test();
+}
+
 void fun_3_terse_syntax()
 {
     Start_Test();
@@ -155,6 +216,9 @@ int main(int argc, char *argv[])
 
     // USM, still use pointer.
     fun_2_usm();
+
+    // USM, host memory and device memory.
+    fun_2_1_usm();
 
     // No sycl::handler
     fun_3_terse_syntax();
