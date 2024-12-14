@@ -138,24 +138,25 @@ void fun_2_1_usm()
 
         // Memory copy: way 2
         q.copy(X_device, X_host, length);
-        q.copy(Z_device, Z_host, length);
-        std::cout << "Z_host=" << Z_host[0] << std::endl;
+        q.copy(Z_device, Z_host, length); // Seems to associate device and host ptr.
+        std::cout << " Z_host=" << Z_host[0] << std::endl;
 
         // USM: still based on pointer.
         q.submit([&](sycl::handler &h)
                  { h.parallel_for<class fun_2_1_usm>(sycl::range<1>{length}, [=](sycl::id<1> i)
-                                                     { Z_device[i] += A * X_device[i] + Y_share[i]; }); });
+                                                     { Z_device[i] = A * X_device[i] + Y_share[i]; }); });
         q.wait();
         // I don't know why copy will auto trigger.
         // q.copy(Z_host, Z_device, length);
-        std::cout << "Z_host=" << Z_host[0] << std::endl;
+        std::cout << " Z_host=" << Z_host[0] << std::endl;
     }
     catch (sycl::exception &e)
     {
         std::cout << e.what() << std::endl;
     }
 
-    std::vector<float> h_expected(length, correct);
+    const float ref_value = (aval * xval + yval);
+    std::vector<float> h_expected(length, ref_value);
     auto r = check_result<float>(Z_host, h_expected.data(), length, FLT_MIN);
     std::cout << " Result is " << (r ? "expected. " : "not expected.") << std::endl;
     End_Test();
