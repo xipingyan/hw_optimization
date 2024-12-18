@@ -9,6 +9,8 @@
 // 2: https://github.com/jeffhammond/dpcpp-tutorial/blob/master/saxpy-usm2.cc
 // 3: https://github.com/jeffhammond/dpcpp-tutorial/blob/master/saxpy-usm3.cc
 
+// Official example: https://github.com/intel/llvm/tree/sycl/sycl/test-e2e/USM
+
 #include "my_common.hpp"
 
 const float xval(1);
@@ -109,6 +111,7 @@ void fun_2_1_usm()
     sycl::queue q(sycl::gpu_selector_v);
     print_device_beckend(q);
 
+    // host memory are accessible by a device
     auto X_host = sycl::malloc_host<float>(length, q);
     auto X_device = sycl::malloc_device<float>(length, q);
     auto Y_share = sycl::malloc_shared<float>(length, q);
@@ -133,21 +136,23 @@ void fun_2_1_usm()
         //          {
         //             // untyped API: cgh.memcpy(X_device, X, length * sizeof(float));
         //             // or typed API
-        //             cgh.copy(X_device, X_host, length);
+        //             cgh.copy(X_device, X_host, length); // X_host->X_device
         //             cgh.copy(Z_device, Z_host, length); });
+        // q.wait();
 
         // Memory copy: way 2
-        q.copy(X_device, X_host, length);
-        q.copy(Z_device, Z_host, length); // Seems to associate device and host ptr.
-        std::cout << " Z_host=" << Z_host[0] << std::endl;
+        q.copy(X_host, X_device, length).wait(); // X_host->X_device
+        q.copy(Z_host, Z_device, length).wait();
 
         // USM: still based on pointer.
         q.submit([&](sycl::handler &h)
                  { h.parallel_for<class fun_2_1_usm>(sycl::range<1>{length}, [=](sycl::id<1> i)
                                                      { Z_device[i] = A * X_device[i] + Y_share[i]; }); });
         q.wait();
-        // I don't know why copy will auto trigger.
-        // q.copy(Z_host, Z_device, length);
+
+        // Copying from device to host, maybe slow, must add wait()
+        q.copy(Z_device, Z_host, length).wait();
+
         std::cout << " Z_host=" << Z_host[0] << std::endl;
     }
     catch (sycl::exception &e)
