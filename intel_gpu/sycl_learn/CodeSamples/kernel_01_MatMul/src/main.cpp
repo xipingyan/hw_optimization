@@ -15,18 +15,20 @@ void test_matmul_01(sycl::queue queue)
     std::cout << "== Start: " << __FUNCTION__ << std::endl;
     // std::vector<size_t> mm_szs = {512, 1024, 2048, 4096};
     std::vector<size_t> mm_szs = {4096};
-    std::vector<float> durations;
+    std::vector<std::pair<float,float>> durations;
     int group_x = 16;
     int group_y = 16;
     int iter = 8;
 
     for (auto mm_sz : mm_szs)
     {
-        auto inputs = MMParamsInput::create(mm_sz, 4096, mm_sz);
-        auto output_ref = MMParamsOutput::create(mm_sz, mm_sz);
-        auto output_cpu = MMParamsOutput::create(mm_sz, mm_sz);
-        auto output_openblas = MMParamsOutput::create(mm_sz, mm_sz);
-        auto output_sycl_gpu_1 = MMParamsOutput::create(mm_sz, mm_sz);
+        auto inputs = MMParamsInput<float>::create(mm_sz, 4096, mm_sz);
+        auto inputs_f16 = cvt_f32_to_half(inputs);
+        auto output_ref = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_cpu = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_openblas = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_sycl_gpu_1 = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_sycl_gpu_2 = MMParamsOutput<float>::create(mm_sz, mm_sz);
 
         if (bCmpAcc) {
             // matmal_kernel_ref(inputs, output_ref);
@@ -38,10 +40,13 @@ void test_matmul_01(sycl::queue queue)
 
         sycl::queue queue_gpu(sycl::gpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
 
-        float min_tm = std::numeric_limits<float>::max();
-        for (auto i = 0; i < 1; i++)
+        float min_tm_f32 = std::numeric_limits<float>::max();
+        float min_tm_f16 = std::numeric_limits<float>::max();
+        for (auto i = 0; i < 5; i++)
         {
-            min_tm = fmin(min_tm, matmal_kernel_1(queue_gpu, inputs, output_sycl_gpu_1, group_x, group_y));
+            min_tm_f32 = fmin(min_tm_f32, matmal_kernel_1(queue_gpu, inputs, output_sycl_gpu_1, group_x, group_y));
+            min_tm_f16 = fmin(min_tm_f16, matmal_kernel_1_inp_f16(queue_gpu, inputs_f16, output_sycl_gpu_2, group_x, group_y));
+
             if (bCmpAcc && i == 0)
             {
                 std::cout << "==========================================" << std::endl;
@@ -51,17 +56,18 @@ void test_matmul_01(sycl::queue queue)
                 // is_same("  cpu_vs_ref", output_cpu, output_ref);
                 // is_same("  cpu_vs_gpu", output_cpu, output_sycl_gpu_1);
                 // is_same("  ref_vs_openblas", output_ref, output_openblas, 1.0e-04);
-                is_same("  gpu_vs_openblas", output_sycl_gpu_1, output_openblas, 1.0e-04);
+                is_same("  gpu_f32_vs_openblas", output_sycl_gpu_1, output_openblas, 1.0e-02);
+                is_same("  gpu_f16_vs_openblas", output_sycl_gpu_2, output_openblas, 1.0e-01);
             }
         }
-        durations.push_back(min_tm);
+        durations.push_back({min_tm_f32, min_tm_f16});
     }
 
     std::cout << "=================================" << std::endl;
     std::cout << "== GPU loop " << iter << " , min infer time: " << std::endl;
     for (size_t i = 0; i < mm_szs.size(); i++)
     {
-        std::cout << "== matmul size = " << mm_szs[i] << ", group size = 16, min tm = " << durations[i] << " ms" << std::endl;
+        std::cout << "== matmul size = " << mm_szs[i] << ", group size = 16, min tm_f32 = " << durations[i].first << " ms, min tm_f16 = " << durations[i].second << " ms" << std::endl;
     }
 }
 

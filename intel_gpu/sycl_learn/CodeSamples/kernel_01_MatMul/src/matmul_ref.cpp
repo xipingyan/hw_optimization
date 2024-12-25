@@ -5,7 +5,7 @@
 #include "my_common.hpp"
 
 // Refer:https://salykova.github.io/matmul-cpu
-float matmal_kernel_ref(MMParamsInput::PTR input, MMParamsOutput::PTR output)
+float matmal_kernel_ref(MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output)
 {
     const size_t &M = input->_m;
     const size_t &K = input->_k;
@@ -16,7 +16,7 @@ float matmal_kernel_ref(MMParamsInput::PTR input, MMParamsOutput::PTR output)
     float *C = output->_c;
 
     assert(M == output->_m);
-    assert(K == output->_k);
+    assert(N == output->_n);
 
     std::cout << "== Kernel: " << __FUNCTION__ << std::endl;
     std::cout << "  Input A = " << M << " x " << K << std::endl;
@@ -48,7 +48,7 @@ float matmal_kernel_ref(MMParamsInput::PTR input, MMParamsOutput::PTR output)
     return dur;
 }
 
-float matmal_kernel_openblas(MMParamsInput::PTR input, MMParamsOutput::PTR output)
+float matmal_kernel_openblas(MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output)
 {
     const size_t &m = input->_m;
     const size_t &k = input->_k;

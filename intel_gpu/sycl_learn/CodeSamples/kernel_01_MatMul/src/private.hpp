@@ -7,19 +7,20 @@
     if (nullptr == X)   \
     std::cout << "== " << __FILE__ << ":" << __LINE__ << " [Fail] can't malloc." << std::endl
 
+template <typename IN_TYPE>
 struct MMParamsInput {
     using PTR = std::shared_ptr<MMParamsInput>;
-    float *_a = nullptr; // input   [M*N]
-    float *_b = nullptr; // Weight  [N*K]
+    IN_TYPE *_a = nullptr; // input   [M*N]
+    IN_TYPE *_b = nullptr; // Weight  [N*K]
     size_t _m = 0, _k = 0, _n = 0;
 
     MMParamsInput() = delete;
     MMParamsInput(size_t m, size_t k, size_t n) : _m(m), _n(n), _k(k)
     {
         // init params with random data.
-        _a = (float*)malloc(sizeof(float) * m * k);
+        _a = (IN_TYPE*)malloc(sizeof(IN_TYPE) * m * k);
         CHECK_MALLOC(_a);
-        _b = (float*) malloc(sizeof(float) * k * n);
+        _b = (IN_TYPE*) malloc(sizeof(IN_TYPE) * k * n);
         CHECK_MALLOC(_b);
         init_random();
     }
@@ -55,7 +56,7 @@ struct MMParamsInput {
 
     void print()
     {
-        auto print_matrix = [](float *data, size_t m, size_t n)
+        auto print_matrix = [](IN_TYPE *data, size_t m, size_t n)
         {
             for (size_t i = 0; i < m; i++)
             {
@@ -72,7 +73,8 @@ struct MMParamsInput {
                         std::cout << ", , ,";
                         break;
                     }
-                    std::cout << data[i * n + j] << ", ";
+                    // static_cast<sycl::half>(accFloat[i]);.
+                    std::cout << static_cast<float>(data[i * n + j]) << ", ";
                 }
                 std::cout << std::endl;
             }
@@ -85,16 +87,17 @@ struct MMParamsInput {
     }
 };
 
+template <typename OUT_TYPE>
 struct MMParamsOutput
 {
     using PTR = std::shared_ptr<MMParamsOutput>;
-    float *_c = nullptr; // output  [M*K]
+    OUT_TYPE *_c = nullptr; // output  [M*K]
     size_t _m = 0, _n = 0;
 
     MMParamsOutput() = delete;
     MMParamsOutput(size_t m, size_t n) : _m(m), _n(n)
     {
-        _c = (float *)malloc(sizeof(float) * m * n);
+        _c = (OUT_TYPE *)malloc(sizeof(OUT_TYPE) * m * n);
         CHECK_MALLOC(_c);
         init_random();
     }
@@ -120,12 +123,15 @@ struct MMParamsOutput
 };
 
 // Reference implementation.
-float matmal_kernel_ref(MMParamsInput::PTR input, MMParamsOutput::PTR output);
-float matmal_kernel_openblas(MMParamsInput::PTR input, MMParamsOutput::PTR output);
+float matmal_kernel_ref(MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output);
+float matmal_kernel_openblas(MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output);
 
-float matmal_kernel_1(sycl::queue &q, MMParamsInput::PTR input, MMParamsOutput::PTR output, int group_x = 16, int group_y = 16);
+float matmal_kernel_1(sycl::queue &q, MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output, int group_x = 16, int group_y = 16);
+float matmal_kernel_1_inp_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR input, MMParamsOutput<float>::PTR output, int group_x = 16, int group_y = 16);
 
 float add_kernel_1(sycl::queue &q, float *data, size_t len, float &output, int group_x = 1);
 float add_kernel_1_f16(sycl::queue &q, sycl::half *data, size_t len, sycl::half &output, int group_x);
 
-bool is_same(std::string prefix, MMParamsOutput::PTR output1, MMParamsOutput::PTR output2, float T = 1e-8f, bool trans_b = false);
+bool is_same(std::string prefix, MMParamsOutput<float>::PTR output1, MMParamsOutput<float>::PTR output2, float T = 1e-8f, bool trans_b = false);
+
+MMParamsInput<sycl::half>::PTR cvt_f32_to_half(MMParamsInput<float>::PTR ptr);
