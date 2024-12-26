@@ -128,6 +128,11 @@ int main()
 	kernel_add.setArg(0, buffer_A);
 	kernel_add.setArg(1, buffer_B);
 	kernel_add.setArg(2, buffer_C);
+
+	auto kernel_name = kernel_add.getInfo<CL_KERNEL_FUNCTION_NAME>();
+	std::cout << "== Test get kernel name from cl::Kernel, kernel_name = " << kernel_name << std::endl;
+	// auto old_kernel_program = kernel_add.getInfo<CL_KERNEL_PROGRAM>();
+
 	queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(10), cl::NullRange);
 	queue.finish();
 
