@@ -232,25 +232,44 @@ sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, 
 
     // constexpr int N = length;
     constexpr int WGSIZE = 1;
-    // cl_int input[N] = {0, 1, 2, 3};
-    // cl_int output[N] = {};
 
+#define UNIFY_DATA_TYPE 1
+#if UNIFY_DATA_TYPE
+    sycl::buffer inputbuf((uint8_t*)X, sycl::range{length*sizeof(int32_t)});
+    sycl::buffer outputbuf((uint8_t*)Z, sycl::range{length*sizeof(int32_t)});
+    std::vector<sycl::buffer<uint8_t, 1, sycl::image_allocator, void>> inputs_buf = {inputbuf, outputbuf};
+#else
     sycl::buffer inputbuf(X, sycl::range{length});
     sycl::buffer outputbuf(Z, sycl::range{length});
-
+#endif
     std::cout << "  == Start to submit" << std::endl;
     return q.submit([&](sycl::handler &cgh)
                     {
                         cgh.depends_on(dep_event);
+#if UNIFY_DATA_TYPE
+                        for (int i = 0; i < inputs_buf.size(); i++)
+                        {
+                            if ((i + 1) == inputs_buf.size())
+                            {
+                                // Last one is output.
+                                sycl::accessor acc_param{inputs_buf[i], cgh, sycl::read_write};
+                                cgh.set_arg(i, acc_param);
+                            }
+                            else
+                            {
+                                sycl::accessor acc_param{inputs_buf[i], cgh, sycl::read_only};
+                                cgh.set_arg(i, acc_param);
+                            }
+                        }
+#else
                         sycl::accessor in{inputbuf, cgh, sycl::read_only};
                         sycl::accessor out{outputbuf, cgh, sycl::read_write};
-
-                        // Each argument to the kernel is a SYCL accessor.
-                        cgh.set_args(in, out);
-
+                        cgh.set_args(in, out); // All arguments
+#endif
                         // Invoke the kernel over an nd-range.
                         sycl::nd_range ndr{{length}, {WGSIZE}};
-                        cgh.parallel_for(ndr, k); });
+                        cgh.parallel_for(ndr, k);
+                    });
 }
 
 void launchOneDNNKernel_reference(std::vector<int32_t> &expected)
