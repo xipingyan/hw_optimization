@@ -3,6 +3,7 @@
 #include <iostream>
 #include <fstream>
 #include <string>
+#include <cmath>
 
 #if __has_include(<sycl/sycl.hpp>)
 #include <sycl/sycl.hpp>
@@ -35,7 +36,7 @@ static std::string load_kernel(std::string kernel_fn)
 }
 
 static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
-											std::string func_name, std::vector<std::pair<sycl::buffer<uint8_t, 1, sycl::image_allocator, void>, bool>> &params,
+											std::string func_name, std::vector<std::pair<sycl::buffer<uint8_t, 1>, bool>> &params,
 											size_t length,
 											sycl::event &dep_event)
 {
@@ -79,58 +80,15 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 						}
 
 						// Invoke the kernel over an nd-range.
-                        sycl::nd_range ndr{{length}, {WGSIZE}};
-						// sycl::nd_range<3> ndr{{384,2,1}, {384,2,1}};
+                        // sycl::nd_range ndr{{length}, {WGSIZE}};
+						sycl::nd_range<3> ndr{{192,384,1}, {192,4,1}};
                         cgh.parallel_for(ndr, k); });
 }
 
-void read_params(sycl::queue queue, std::vector<std::pair<sycl::buffer<uint8_t, 1, sycl::image_allocator, void>, bool>> &params,
-				 float **in_buf, sycl::half **out_buf, size_t &length)
-{
-	std::string param_fn_1 = "reorder_data_11511535514038671586_0_0__sa_6144.dat";
-	std::string param_fn_2 = "reorder_data_11511535514038671586_0_0__sa_3072.dat";
-	std::string param_fn_3 = "reorder_data_11511535514038671586_0_0__sa_64.dat";
-	*in_buf = sycl::malloc_shared<float>(6144 / sizeof(float), queue);
-	*out_buf = sycl::malloc_shared<sycl::half>(3072 / sizeof(sycl::half), queue);
-	auto cell_buf = sycl::malloc_shared<int32_t>(64 / sizeof(int32_t), queue);
-
-	FILE *pf1 = fopen(param_fn_1.c_str(), "rb");
-	fread(*in_buf, sizeof(u_char), 6144, pf1);
-	fclose(pf1);
-	length = 6144 / sizeof(float);
-
-	FILE *pf2 = fopen(param_fn_2.c_str(), "rb");
-	fread(*out_buf, sizeof(u_char), 3072, pf2);
-	fclose(pf2);
-
-	FILE *pf3 = fopen(param_fn_3.c_str(), "rb");
-	fread(cell_buf, sizeof(u_char), 64, pf1);
-	fclose(pf3);
-
-	sycl::buffer param_in1((uint8_t *)(*in_buf), sycl::range{6144});
-	params.push_back({param_in1, false});
-	sycl::buffer param_in2((uint8_t *)(*out_buf), sycl::range{3072});
-	params.push_back({param_in2, true});
-	sycl::buffer param_in3((uint8_t *)(cell_buf), sycl::range{64});
-	params.push_back({param_in3, false});
-
-	for (size_t i = 0; i < length; i++)
-	{
-		(*in_buf)[i] = i + 0.12345678f;
-	}
-
-	std::cout << "  == cell_buf = ";
-	for (size_t i = 0; i < 64 / sizeof(int32_t); i++)
-	{
-		std::cout << cell_buf[i] << ", ";
-	}
-	std::cout << std::endl;
-}
-
-int test_sycl_olc_interoperate_l0_backend()
+int test_sycl_olc_interoperate_l0_backend_reoder_weights()
 {
 	std::cout << "== Test: " << __FUNCTION__ << ":" << __LINE__ << std::endl;
-	std::string kernel_source = load_kernel("../02_sycl_ocl_interoperate/src/kernel_f32_to_f16.cl");
+	std::string kernel_source = load_kernel("../02_sycl_ocl_interoperate/src/reorder_weights_7_weight_0_0.cl");
 	// std::cout << "  kernel_source = " << kernel_source << std::endl;
 
 	auto queue = sycl::queue(sycl::gpu_selector_v);
@@ -140,46 +98,41 @@ int test_sycl_olc_interoperate_l0_backend()
 			  << std::endl;
 
 	sycl::event ev;
-	std::vector<std::pair<sycl::buffer<uint8_t, 1, sycl::image_allocator, void>, bool>> params;
+	std::vector<std::pair<sycl::buffer<uint8_t, 1>, bool>> params;
 
-#define READ_PARAM 0
-#if !READ_PARAM
-	size_t length = 6144 / sizeof(float);
+	size_t length = 192 * 384;
 	auto in_buf = sycl::malloc_shared<float>(length, queue);
 	auto out_buf = sycl::malloc_shared<sycl::half>(length, queue);
 	for (size_t i = 0; i < length; i++)
 	{
-		in_buf[i] = i + 0.12345678f;
-	}
-	auto cell_buf = sycl::malloc_shared<int32_t>(64 / sizeof(int32_t), queue);
-	int32_t cell_arr[] = {1, 2, 1, 1, 1, 1, 384, 1, 1, 2, 1, 1, 1, 1, 384, 1};
-	for (size_t i = 0; i < 64 / sizeof(int32_t); i++)
-	{
-		cell_buf[i] = cell_arr[i];
+		in_buf[i] = i % 10 + 0.12345678f;
 	}
 
 	sycl::buffer param_in((uint8_t *)(in_buf), sycl::range{length * sizeof(float)});
 	params.push_back({param_in, false});
 	sycl::buffer param_out((uint8_t *)(out_buf), sycl::range{length * sizeof(sycl::half)});
 	params.push_back({param_out, true});
-	sycl::buffer param_cell((uint8_t *)(cell_buf), sycl::range{64});
-	params.push_back({param_cell, false});
-#else
-	size_t length = 1;
-	float *in_buf = nullptr;
-	sycl::half *out_buf = nullptr;
-	read_params(queue, params, &in_buf, &out_buf, length);
-#endif
 
-	launchOpenCLKernelOnline(queue, kernel_source, "reorder_data_11511535514038671586_0_0__sa", params, length, ev);
+	auto ret_ev = launchOpenCLKernelOnline(queue, kernel_source, "reorder_weights_7_weight_0_0", params, length, ev);
+	ret_ev.wait();
 
 	// Print IN/OUT
 	std::cout << "  == Compare input and output:" << std::endl;
-	for (size_t i = 0; i < 5; i++)
+	int diff_num = 0;
+	for (size_t i = 0; i < length; i++)
 	{
-		std::cout << "    in_buf[" << i << "] = " << in_buf[i] << " VS out_buf[" << i << "] = " << out_buf[i] << std::endl;
+		if (fabs(in_buf[i] - out_buf[i]) > 0.01f)
+		{
+			diff_num++;
+			std::cout << "    in_buf[" << i << "] = " << in_buf[i] << " VS out_buf[" << i << "] = " << out_buf[i] << std::endl;
+		}
+		if (diff_num > 5)
+		{
+			break;
+		}
 	}
 
 	std::cout << std::endl;
+	std::cout << "  == Input and Ouput are " << (diff_num == 0 ? "Same." : "Not Same.") << std::endl;
 	return 0;
 }
