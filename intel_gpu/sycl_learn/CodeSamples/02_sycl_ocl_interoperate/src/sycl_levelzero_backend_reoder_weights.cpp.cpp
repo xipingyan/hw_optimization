@@ -57,9 +57,6 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 	std::cout << "  == Start to get sycl::kernel" << std::endl;
 	sycl::kernel k = kb_exe.ext_oneapi_get_kernel(func_name);
 
-	// constexpr int N = length;
-	constexpr int WGSIZE = 1;
-
 	std::cout << "  == Start to submit" << std::endl;
 	return q.submit([&](sycl::handler &cgh)
 					{
@@ -80,15 +77,19 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 						}
 
 						// Invoke the kernel over an nd-range.
-                        // sycl::nd_range ndr{{length}, {WGSIZE}};
-						sycl::nd_range<3> ndr{{192,384,1}, {192,4,1}};
-                        cgh.parallel_for(ndr, k); });
+						// sycl::nd_range<3> ndr{{192,384,1}, {192,4,1}};
+						sycl::nd_range<3> ndr{{1, 384, 192}, {1, 4, 192}};
+						cgh.parallel_for(ndr, k); });
 }
 
 int test_sycl_olc_interoperate_l0_backend_reoder_weights()
 {
 	std::cout << "== Test: " << __FUNCTION__ << ":" << __LINE__ << std::endl;
-	std::string kernel_source = load_kernel("../02_sycl_ocl_interoperate/src/reorder_weights_7_weight_0_0.cl");
+
+	// It's hard to read for original cl file.
+	// Convert to clean code via:
+	// $ cpp original.cl > clean.cl
+	std::string kernel_source = load_kernel("../02_sycl_ocl_interoperate/src/reorder_weights_7_weight_0_0_clean.cl");
 	// std::cout << "  kernel_source = " << kernel_source << std::endl;
 
 	auto queue = sycl::queue(sycl::gpu_selector_v);
