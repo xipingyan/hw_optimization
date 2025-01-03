@@ -102,6 +102,15 @@ int main()
 		exit(1);
 	}
 
+	// Construct kernel 1
+	cl::vector<cl::Kernel> kernels;
+	program.createKernels(&kernels);
+	if (kernels.size() > 0)
+	{
+		auto kernel_name = kernels[0].getInfo<CL_KERNEL_FUNCTION_NAME>();
+		std::cout << "  == Get kernel function name from  = " << kernel_name << std::endl;
+	}
+
 	// create buffers on the device
 	cl::Buffer buffer_A(context, CL_MEM_READ_WRITE, sizeof(int) * 10);
 	cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, sizeof(int) * 10);
@@ -124,7 +133,7 @@ int main()
 
 	std::cout << "== Create Kernel with program and run." << std::endl;
 	// alternative way to run the kernel
-	cl::Kernel kernel_add = cl::Kernel(program, "simple_add");
+	cl::Kernel kernel_add = cl::Kernel(program, "simple_add");    // Construct kernel 2
 	kernel_add.setArg(0, buffer_A);
 	kernel_add.setArg(1, buffer_B);
 	kernel_add.setArg(2, buffer_C);
