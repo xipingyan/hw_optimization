@@ -199,17 +199,62 @@ sycl::event launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, in
 }
 #endif
 
+class MY_SYCL_buf
+{
+public:
+    MY_SYCL_buf() = delete;
+    MY_SYCL_buf(sycl::buffer<uint8_t, 1, sycl::image_allocator, void> buf, bool isOutput) : _isBuf(true), _buf(buf), _val(0), _isOutput(isOutput)
+    {
+    }
+    MY_SYCL_buf(int val) : _isBuf(false), _buf(0, 1), _val(val)
+    {
+    }
+    bool _isBuf;
+    sycl::buffer<uint8_t, 1, sycl::image_allocator, void> _buf;
+    int _val = 0; // if isBuf == false;
+    bool _isOutput = false;
+    friend std::ostream &operator<<(std::ostream &os, const MY_SYCL_buf &bf);
+};
+
+std::ostream &operator<<(std::ostream &os, const MY_SYCL_buf &bf)
+{
+    os << "MY_SYCL_buf(_isBuf = " << bf._isBuf << ", _val = " << bf._val << ", _isOutput = " << bf._isOutput << ")";
+    return os;
+};
+
+void my_set_args(sycl::handler &cgh, size_t idx, MY_SYCL_buf buf) {
+    if (buf._isOutput)
+    {
+        // Last one is output.
+        sycl::accessor acc_param{buf._buf, cgh, sycl::read_write};
+        cgh.set_arg(idx, acc_param);
+    }
+    else
+    {
+        if (buf._isBuf)
+        {
+            sycl::accessor acc_param{buf._buf, cgh, sycl::read_only};
+            cgh.set_arg(idx, acc_param);
+        }
+        else
+        {
+            cgh.set_arg(idx, buf._val);
+        }
+    }
+}
+
 // Launch OpenCL, online compile to Sycl interface.
 // Refer: https://github.com/intel/llvm/blob/sycl/sycl/doc/extensions/experimental/sycl_ext_oneapi_kernel_compiler_opencl.asciidoc
-sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t *Z, sycl::event &dep_event)
+sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, int32_t *Z, int32_t offset, sycl::event &dep_event)
 {
     std::cout << "== Start to test launch OpenCL kernel and compile online." << std::endl;
     // Kernel defined as an OpenCL C string.  This could be dynamically
     // generated instead of a literal.
     std::string source = R"""(
-        __kernel void my_kernel(__global int *in, __global int *out) {
+        __kernel void my_kernel(__global int *in, __global int *out, int offset_val) {
             size_t i = get_global_id(0);
-            out[i] = out[i]*2 + in[i];
+            out[i] = out[i]*2 + in[i] + offset_val;
+            // printf("  == offset_val = %d, i = %d\n", offset_val, i);
         }
     )""";
 
@@ -237,34 +282,33 @@ sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, 
 #if UNIFY_DATA_TYPE
     sycl::buffer inputbuf((uint8_t*)X, sycl::range{length*sizeof(int32_t)});
     sycl::buffer outputbuf((uint8_t*)Z, sycl::range{length*sizeof(int32_t)});
-    std::vector<sycl::buffer<uint8_t, 1, sycl::image_allocator, void>> inputs_buf = {inputbuf, outputbuf};
+
+    std::vector<MY_SYCL_buf> inputs_buf;
+    inputs_buf.push_back(MY_SYCL_buf(inputbuf, false));
+    inputs_buf.push_back(MY_SYCL_buf(outputbuf, true));
+    inputs_buf.push_back(MY_SYCL_buf(offset));
 #else
     sycl::buffer inputbuf(X, sycl::range{length});
     sycl::buffer outputbuf(Z, sycl::range{length});
 #endif
     std::cout << "  == Start to submit" << std::endl;
+
+    // for (int i = 0; i < inputs_buf.size(); i++) {
+    //     std::cout << "inputs[" << i << "] = " << inputs_buf[i] << std::endl;
+    // }
     return q.submit([&](sycl::handler &cgh)
                     {
                         cgh.depends_on(dep_event);
 #if UNIFY_DATA_TYPE
                         for (int i = 0; i < inputs_buf.size(); i++)
                         {
-                            if ((i + 1) == inputs_buf.size())
-                            {
-                                // Last one is output.
-                                sycl::accessor acc_param{inputs_buf[i], cgh, sycl::read_write};
-                                cgh.set_arg(i, acc_param);
-                            }
-                            else
-                            {
-                                sycl::accessor acc_param{inputs_buf[i], cgh, sycl::read_only};
-                                cgh.set_arg(i, acc_param);
-                            }
+                            my_set_args(cgh, i, inputs_buf[i]);
                         }
 #else
                         sycl::accessor in{inputbuf, cgh, sycl::read_only};
                         sycl::accessor out{outputbuf, cgh, sycl::read_write};
                         cgh.set_args(in, out); // All arguments
+                        cgh.set_arg(2, offset); // scalar param
 #endif
                         // Invoke the kernel over an nd-range.
                         sycl::nd_range ndr{{length}, {WGSIZE}};
@@ -311,14 +355,16 @@ int main()
 {
     std::cout << "Start to test call SPIR-V kernel(converted from opencl kernel)." << std::endl;
 
-    auto queue = sycl::queue(sycl::gpu_selector_v);
+    auto queue = sycl::queue(sycl::gpu_selector_v, sycl::property::queue::in_order{});
     std::cout << "== Using "
               << queue.get_device().get_info<sycl::info::device::name>()
               << ", Backend: " << queue.get_backend()
               << std::endl;
+    auto order_properity = queue.get_property<sycl::property::queue::in_order>();
+    std::cout << "  == order_properity = " << order_properity.getKind() << std::endl;
 
     // input param:
-    size_t length = 1000;
+    size_t length = 10;
 #define USM_BUF_QUEUE 0
 #if USM_BUF_QUEUE
     auto X = sycl::malloc_shared<int32_t>(length, queue);
@@ -352,11 +398,12 @@ int main()
 #endif
 
     // 2: OpenCL online kernel: Z = 2 * Z + X;
+    int32_t offset = 2;
     for (size_t i = 0; i < length; i++)
     {
-        expected[i] = 2 * expected[i] + X[i];
+        expected[i] = 2 * expected[i] + X[i] + offset;
     }
-    auto event2 = launchOpenCLKernelOnline(queue, length, X, Z, event1);
+    auto event2 = launchOpenCLKernelOnline(queue, length, X, Z, offset, event1);
 
     // 3: Sycl kernel: Z = Z + 3
     for (size_t i = 0; i < length; i++)
@@ -365,6 +412,7 @@ int main()
     }
     std::cout << "== Start to launch native sycl kernel." << std::endl;
 #if 1
+    event2.wait();
     auto event3 = queue.parallel_for<class sycl_kernel_add_3>(sycl::range<1>(length), [Z](sycl::id<1> i)
                                                               { Z[i] = Z[i] + 3; });
 #else // Add depends_on.
