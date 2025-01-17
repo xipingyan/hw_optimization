@@ -199,30 +199,30 @@ sycl::event launchSPVKernelFromOpenCLOffline_2(sycl::queue &q, size_t length, in
 }
 #endif
 
-class MY_SYCL_buf
+class sycl_args
 {
 public:
-    MY_SYCL_buf() = delete;
-    MY_SYCL_buf(sycl::buffer<uint8_t, 1, sycl::image_allocator, void> buf, bool isOutput) : _isBuf(true), _buf(buf), _val(0), _isOutput(isOutput)
+    sycl_args() = delete;
+    sycl_args(sycl::buffer<uint8_t, 1, sycl::image_allocator, void> buf, bool isOutput) : _isBuf(true), _buf(buf), _val(0), _isOutput(isOutput)
     {
     }
-    MY_SYCL_buf(int val) : _isBuf(false), _buf(0, 1), _val(val)
+    sycl_args(int val) : _isBuf(false), _buf(0, 1), _val(val)
     {
     }
     bool _isBuf;
     sycl::buffer<uint8_t, 1, sycl::image_allocator, void> _buf;
     int _val = 0; // if isBuf == false;
     bool _isOutput = false;
-    friend std::ostream &operator<<(std::ostream &os, const MY_SYCL_buf &bf);
+    friend std::ostream &operator<<(std::ostream &os, const sycl_args &bf);
 };
 
-std::ostream &operator<<(std::ostream &os, const MY_SYCL_buf &bf)
+std::ostream &operator<<(std::ostream &os, const sycl_args &bf)
 {
-    os << "MY_SYCL_buf(_isBuf = " << bf._isBuf << ", _val = " << bf._val << ", _isOutput = " << bf._isOutput << ")";
+    os << "sycl_args(_isBuf = " << bf._isBuf << ", _val = " << bf._val << ", _isOutput = " << bf._isOutput << ")";
     return os;
 };
 
-void my_set_args(sycl::handler &cgh, size_t idx, MY_SYCL_buf buf) {
+void my_set_args(sycl::handler &cgh, size_t idx, sycl_args buf) {
     if (buf._isOutput)
     {
         // Last one is output.
@@ -283,10 +283,10 @@ sycl::event launchOpenCLKernelOnline(sycl::queue &q, size_t length, int32_t *X, 
     sycl::buffer inputbuf((uint8_t*)X, sycl::range{length*sizeof(int32_t)});
     sycl::buffer outputbuf((uint8_t*)Z, sycl::range{length*sizeof(int32_t)});
 
-    std::vector<MY_SYCL_buf> inputs_buf;
-    inputs_buf.push_back(MY_SYCL_buf(inputbuf, false));
-    inputs_buf.push_back(MY_SYCL_buf(outputbuf, true));
-    inputs_buf.push_back(MY_SYCL_buf(offset));
+    std::vector<sycl_args> inputs_buf;
+    inputs_buf.push_back(sycl_args(inputbuf, false));
+    inputs_buf.push_back(sycl_args(outputbuf, true));
+    inputs_buf.push_back(sycl_args(offset));
 #else
     sycl::buffer inputbuf(X, sycl::range{length});
     sycl::buffer outputbuf(Z, sycl::range{length});
