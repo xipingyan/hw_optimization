@@ -167,6 +167,51 @@ void fun_2_1_usm()
     End_Test();
 }
 
+// Init memory with fill
+void fun_2_2_usm_fill()
+{
+    Start_Test();
+    size_t length = 1024;
+
+    sycl::queue q(sycl::gpu_selector_v);
+    print_device_beckend(q);
+
+    // host memory are accessible by a device
+    auto X_host = sycl::malloc_host<float>(length, q);
+    auto X_device = sycl::malloc_device<float>(length, q);
+
+    try
+    {
+        const float A(aval);
+#if 1
+        q.fill(X_device, aval, length).wait();
+        // q.submit([&](sycl::handler &cgh)
+        //          { cgh.fill(X_device, aval, length); })
+        //     .wait();
+#else
+        // unifiy to 8bit
+        const void *pbuf = reinterpret_cast<const void *>(&aval);
+        int pattern_size = sizeof(float);
+        int bytes_count = pattern_size * length;
+        q.fill(X_device, pbuf, bytes_count).wait();
+#endif
+        // Copying from device to host, maybe slow, must add wait()
+        q.copy(X_device, X_host, length).wait();
+
+        std::cout << " Z_host[0] expected value =" << aval << ", real value =" << X_host[0] << std::endl;
+    }
+    catch (sycl::exception &e)
+    {
+        std::cout << e.what() << std::endl;
+    }
+
+    const float ref_value = aval;
+    std::vector<float> h_expected(length, ref_value);
+    auto r = check_result<float>(X_host, h_expected.data(), length, FLT_MIN);
+    std::cout << " Result is " << (r ? "expected. " : "not expected.") << std::endl;
+    End_Test();
+}
+
 void fun_3_terse_syntax()
 {
     Start_Test();
@@ -225,6 +270,8 @@ int main(int argc, char *argv[])
 
     // USM, host memory and device memory.
     fun_2_1_usm();
+
+    fun_2_2_usm_fill();
 
     // No sycl::handler
     fun_3_terse_syntax();
