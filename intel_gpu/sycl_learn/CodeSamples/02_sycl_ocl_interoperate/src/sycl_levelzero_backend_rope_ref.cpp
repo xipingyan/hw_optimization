@@ -64,8 +64,12 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 			  << ndr.get_local_range()[2] << "]" << std::endl;
 
 	std::cout << "  == Start to submit" << std::endl;
-	return q.submit([&](sycl::handler &cgh)
-					{
+	sycl::event ret_ev;
+	for (size_t i = 0; i < 15; i++)
+	{
+		auto t1 = std::chrono::high_resolution_clock::now();
+		ret_ev = q.submit([&](sycl::handler &cgh)
+				 {
                         cgh.depends_on(dep_event);
 
 						for (int i = 0; i < params.size(); i++)
@@ -84,6 +88,11 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 
 						// Invoke the kernel over an nd-range.
 						cgh.parallel_for(ndr, k); });
+		ret_ev.wait();
+		auto t2 = std::chrono::high_resolution_clock::now();
+		std::cout << "  == Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+	}
+	return ret_ev;
 }
 
 int test_sycl_olc_interoperate_l0_backend_rope_ref()

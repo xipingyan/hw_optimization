@@ -129,10 +129,14 @@ int main()
 
 	auto kernel_name = kernel_add.getInfo<CL_KERNEL_FUNCTION_NAME>();
 	std::cout << "== Test get kernel name from cl::Kernel, kernel_name = " << kernel_name << std::endl;
-	// auto old_kernel_program = kernel_add.getInfo<CL_KERNEL_PROGRAM>()
-	// queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(192, 14, 1),  cl::NDRange(192, 2, 1));
-	queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(1, 14, 192),  cl::NDRange(1, 2, 192));
-	queue.finish();
+	for (size_t i = 0; i < 15; i++)
+	{
+		auto t1 = std::chrono::high_resolution_clock::now();
+		queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(1, 14, 192), cl::NDRange(1, 2, 192));
+		queue.finish();
+		auto t2 = std::chrono::high_resolution_clock::now();
+		std::cout << "== Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+	}
 
 	std::cout << "== Read result." << std::endl;
 	int C[10];
