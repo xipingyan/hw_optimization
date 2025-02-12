@@ -71,7 +71,7 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 							}
 							else
 							{
-								sycl::accessor acc_param{params[i].first, cgh, sycl::read_only};
+								sycl::accessor acc_param{params[i].first, cgh, sycl::read_write};
 								cgh.set_arg(i, acc_param);
 							}
 						}
@@ -92,10 +92,10 @@ int test_sycl_olc_interoperate_l0_backend_reoder_weights()
 	std::string kernel_source = load_kernel("../02_sycl_ocl_interoperate/src/reorder_weights_7_weight_0_0_clean.cl");
 	// std::cout << "  kernel_source = " << kernel_source << std::endl;
 
-	auto queue = sycl::queue(sycl::gpu_selector_v);
+	auto queue = sycl::queue(sycl::gpu_selector_v, sycl::property::queue::in_order {});
 	std::cout << "  == Using "
 			  << queue.get_device().get_info<sycl::info::device::name>()
-			  << ", Backend: " << queue.get_backend()
+			  << ", Backend: " << queue.get_backend() << ", in order: " << queue.is_in_order()
 			  << std::endl;
 
 	sycl::event ev;
@@ -103,7 +103,8 @@ int test_sycl_olc_interoperate_l0_backend_reoder_weights()
 
 	size_t length = 192 * 384;
 	auto in_buf = sycl::malloc_shared<float>(length, queue);
-	auto out_buf = sycl::malloc_shared<sycl::half>(length, queue);
+	auto out_buf = sycl::malloc_device<sycl::half>(length, queue);
+	auto out_buf_host = sycl::malloc_host<sycl::half>(length, queue);
 	for (size_t i = 0; i < length; i++)
 	{
 		in_buf[i] = i % 10 + 0.12345678f;
@@ -116,16 +117,17 @@ int test_sycl_olc_interoperate_l0_backend_reoder_weights()
 
 	auto ret_ev = launchOpenCLKernelOnline(queue, kernel_source, "reorder_weights_7_weight_0_0", params, length, ev);
 	ret_ev.wait();
+	queue.copy(out_buf, out_buf_host, length).wait();
 
 	// Print IN/OUT
 	std::cout << "  == Compare input and output:" << std::endl;
 	int diff_num = 0;
 	for (size_t i = 0; i < length; i++)
 	{
-		if (fabs(in_buf[i] - out_buf[i]) > 0.01f)
+		if (fabs(in_buf[i] - out_buf_host[i]) > 0.01f)
 		{
 			diff_num++;
-			std::cout << "    in_buf[" << i << "] = " << in_buf[i] << " VS out_buf[" << i << "] = " << out_buf[i] << std::endl;
+			std::cout << "    in_buf[" << i << "] = " << in_buf[i] << " VS out_buf_host[" << i << "] = " << out_buf_host[i] << std::endl;
 		}
 		if (diff_num > 5)
 		{

@@ -13,7 +13,7 @@ std::string DumpData::to_string()
     {
         ret += std::to_string(s) + ", ";
     }
-    ret += "], format=" + format + ", data=";
+    ret += "], format=" + format + ", data size=" + std::to_string(data.size()) + ", data=";
     for (auto i = 0; i < std::min((size_t)2u, data.size()); i++)
     {
         ret += std::to_string(data[i]) + ", ";
