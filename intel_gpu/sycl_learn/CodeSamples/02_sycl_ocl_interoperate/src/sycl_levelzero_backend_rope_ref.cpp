@@ -130,10 +130,10 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	input0.format = "bfyx";
 	input0.shape = {34};
 
-	auto input1 = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_src0.txt");
-	auto input2 = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_src1.txt");
-	auto input3 = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_src2.txt");
-	auto output_expected = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_dst0.txt");
+	auto input1 = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src0.txt");
+	auto input2 = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src1.txt");
+	auto input3 = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src2.txt");
+	auto output_expected = load_dump_data(kernel_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_dst0.txt");
 
 	auto buf0 = input0.to_int(queue);
 	auto buf1 = input1.to_half(queue);

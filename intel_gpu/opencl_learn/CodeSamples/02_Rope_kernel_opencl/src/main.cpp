@@ -90,10 +90,10 @@ int main()
 	input_0.shape = {34};
 
 	std::string root_path = "../../../sycl_learn/CodeSamples/02_sycl_ocl_interoperate/src/kernel_rope_ref/";
-	auto input_1 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_src0.txt");
-	auto input_2 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_src1.txt");
-	auto input_3 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_src2.txt");
-	auto output_expected = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.1.self_attn_aten__add_Add_dst0.txt");
+	auto input_1 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src0.txt");
+	auto input_2 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src1.txt");
+	auto input_3 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src2.txt");
+	auto output_expected = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_dst0.txt");
 
 	// create buffers on the device
 	cl::Buffer inp_buf_0(context, CL_MEM_READ_ONLY, sizeof(int) * input_0.data.size());
@@ -139,7 +139,6 @@ int main()
 	}
 
 	std::cout << "== Read result." << std::endl;
-	int C[10];
 	// read result C from the device to array C
 	ushort* output = (ushort*)malloc(sizeof(ushort) * output_expected.data.size());
 	queue.enqueueReadBuffer(out_buf_0, CL_TRUE, 0, sizeof(ushort) * output_expected.data.size(), output);
@@ -154,6 +153,18 @@ int main()
 			is_expected = false;
 		}
 	}
+
+	// Dump result:
+	std::string dump_fn = "out_opencl_rope_kernel.log";
+	std::cout << "== Start dump result: " << dump_fn << std::endl;
+	std::filebuf fb;
+	fb.open(dump_fn, std::ios::out);
+	std::ostream os(&fb);
+	for (int i = 0; i < output_expected.data.size(); i++)
+	{
+		os << half_to_float(output[i]) << std::endl;
+	}
+	fb.close();
 
 	// std::cout << "== Result is_expected = " << is_expected << std::endl;
 	std::cout << "== Done." << std::endl;
