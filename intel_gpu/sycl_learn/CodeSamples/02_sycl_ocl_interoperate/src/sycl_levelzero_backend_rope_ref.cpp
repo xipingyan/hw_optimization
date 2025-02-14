@@ -16,6 +16,16 @@
 #include <sycl/ext/oneapi/backend/level_zero.hpp>
 namespace syclex = sycl::ext::oneapi::experimental;
 
+static bool get_env(std::string env) {
+	auto env_str = std::getenv(env.c_str());
+	if (env_str && std::string("1") == env_str) {
+		std::cout << "  == Get: " << env << " = 1" << std::endl;
+		return true;
+	}
+	std::cout << "  == Get: " << env << " = 0" << std::endl;
+	return false;
+}
+
 static std::string load_kernel(std::string kernel_fn)
 {
 	std::ifstream kernel_file(kernel_fn.c_str(), std::ios::in | std::ios::binary);
@@ -37,7 +47,7 @@ static std::string load_kernel(std::string kernel_fn)
 
 static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 											std::string func_name, std::vector<std::pair<sycl::buffer<uint8_t, 1>, bool>> &params,
-											sycl::event &dep_event)
+											sycl::event &dep_event, bool test_performance)
 {
 	std::cout << "  == Start to kernel_bundle opencl source" << std::endl;
 	sycl::kernel_bundle<sycl::bundle_state::ext_oneapi_source> kb_src =
@@ -65,7 +75,8 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 
 	std::cout << "  == Start to submit" << std::endl;
 	sycl::event ret_ev;
-	for (size_t i = 0; i < 15; i++)
+	size_t loop_num = test_performance ? 15 : 1;
+	for (size_t i = 0; i < loop_num; i++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
 		ret_ev = q.submit([&](sycl::handler &cgh)
@@ -90,14 +101,71 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 						cgh.parallel_for(ndr, k); });
 		ret_ev.wait();
 		auto t2 = std::chrono::high_resolution_clock::now();
-		std::cout << "  == Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+		if (test_performance)
+			std::cout << "  == Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+	}
+	return ret_ev;
+}
+
+static sycl::event launchSyclKernel(sycl::queue &q, int *buf0, sycl::half *buf1, sycl::half *buf2, sycl::half *buf3, sycl::half *out_buf, bool test_performance)
+{
+	sycl::nd_range ndr = sycl::nd_range{sycl::range{1, 14, 192}, sycl::range{1, 2, 192}};
+	auto* shape_info = buf0;
+	auto* input = buf1;
+	auto* cos = buf2;
+	auto* sin = buf3;
+	auto* output = out_buf;
+
+	sycl::event ret_ev;
+	size_t loop_num = test_performance ? 15 : 1;
+	for (size_t i = 0; i < loop_num; i++)
+	{
+		auto t1 = std::chrono::high_resolution_clock::now();
+		q.submit([&](sycl::handler &cgh)
+				 { 
+					// auto out = sycl::stream(1024, 768, cgh);
+					cgh.parallel_for<class rope_sycl>(ndr, [=](sycl::nd_item<3> itm)
+													 {
+										const uint b = itm.get_global_id(0);
+										const uint h = itm.get_global_id(1);
+										const uint p = (uint)itm.get_global_id(2) / 32;
+										const uint r = (uint)itm.get_global_id(2) % 32;
+
+										uint input_idx = ((1 * 0) + (64 * (shape_info[8])) + ((64 * (14 + (shape_info[8] + shape_info[9]))) * 0) + ((64 * (14 + (shape_info[8] + shape_info[9])) * 1) * 0) + ((64 * (14 + (shape_info[8] + shape_info[9])) * 1 * 1 * 1 * 1) * 0) + ((64 * (14 + (shape_info[8] + shape_info[9])) * 1 * 1 * 1 * 1 * (shape_info[1] + 0)) * 0)) + (0) * 1 + (h) * 64 + (p) * (64 * (14 + (shape_info[8] + shape_info[9])) * 1 * 1 * 1 * 1) + (b) * (64 * (14 + (shape_info[8] + shape_info[9])) * 1 * 1 * 1 * 1 * (shape_info[1] + 0));
+
+										uint cos_sin_b = b < (shape_info[10]) ? b : 0;
+										uint cos_sin_h = h < 1 ? h : 0;
+										uint cos_sin_p = p;
+										cos_sin_p = cos_sin_p < (shape_info[16]) ? cos_sin_p : 0;
+
+										uint cos_sin_idx = ((1 * 0) + (64 * 0) + ((64 * (shape_info[16] + 0)) * 0) + ((64 * (shape_info[16] + 0) * 1) * 0) + ((64 * (shape_info[16] + 0) * 1 * 1 * 1 * 1) * 0) + ((64 * (shape_info[16] + 0) * 1 * 1 * 1 * 1 * 1) * 0)) + (0) * 1 + (cos_sin_p) * 64 + (cos_sin_h) * (64 * (shape_info[16] + 0) * 1 * 1 * 1 * 1) + (cos_sin_b) * (64 * (shape_info[16] + 0) * 1 * 1 * 1 * 1 * 1);
+										uint cos_idx = cos_sin_idx;
+										uint sin_idx = cos_sin_idx;
+
+										uint output_idx = ((1 * 0) + (64 * 0) + ((64 * (shape_info[32] + 0)) * 0) + ((64 * (shape_info[32] + 0) * 1) * 0) + ((64 * (shape_info[32] + 0) * 1 * 1 * 1 * 1) * 0) + ((64 * (shape_info[32] + 0) * 1 * 1 * 1 * 1 * 14) * 0)) + (0) * 1 + (p) * 64 + (h) * (64 * (shape_info[32] + 0) * 1 * 1 * 1 * 1) + (b) * (64 * (shape_info[32] + 0) * 1 * 1 * 1 * 1 * 14);
+										sycl::half in1 = input[input_idx + r];
+										sycl::half in2 = input[input_idx + 32 + r];
+										output[output_idx + r] = cos[cos_idx + r] * in1 - sin[sin_idx + r] * in2;
+										output[output_idx + 32 + r] = cos[cos_idx + 32 + r] * in2 +
+																	  sin[sin_idx + 32 + r] * in1;
+										// out << "output[" << output_idx << "]=" << output[output_idx + r] << sycl::endl;
+																	   }); })
+			.wait();
+		auto t2 = std::chrono::high_resolution_clock::now();
+		if (test_performance)
+			std::cout << "  == Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
 	}
 	return ret_ev;
 }
 
 int test_sycl_olc_interoperate_l0_backend_rope_ref()
 {
-	std::cout << "== Test: " << __FUNCTION__ << ":" << __LINE__ << std::endl;
+	std::cout << "  default: Test OpenCL kernel in sycl pipeline." << std::endl;
+	std::cout << "  SYCL_KERNEL=1: Test SYCL kernel in sycl pipeline.\n" << std::endl;
+	std::cout << "== Test: " << __FUNCTION__ << ", " << __FILE__ << ":" << __LINE__ << std::endl;
+
+	bool test_performance = get_env("PERFORMANCE");
+	bool test_sycl_kernel = get_env("SYCL_KERNEL");
 
 	// It's hard to read for original cl file.
 	// Convert to clean code via:
@@ -157,27 +225,41 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	sycl::buffer param_4(reinterpret_cast<uint8_t *>(output_buf), sycl::range{output_expected.data.size() * sizeof(sycl::half)});
 	params.push_back({param_4, true});
 
-	auto ret_ev = launchOpenCLKernelOnline(queue, kernel_source, "rope_ref_11982042700243959200_0_0__sa", params, ev);
-	ret_ev.wait();
-
-	// Print IN/OUT
-	std::cout << "  == Compare input and output:" << std::endl;
-	int diff_num = 0;
-	for (size_t i = 0; i < output_expected.data.size(); i++)
+	if (test_sycl_kernel)
 	{
-		if (fabs(output_expected.data[i] - output_buf[i]) > 0.00001f)
-		{
-			diff_num++;
-			std::cout << "    output_expected[" << i << "] = " << output_expected.data[i] << " VS output_buf[" << i << "] = " << output_buf[i] << std::endl;
-		}
-		if (diff_num > 5)
-		{
-			break;
-		}
+		std::cout << "  == run sycl kernel." << std::endl;
+		auto ret_ev = launchSyclKernel(queue, buf0, buf1, buf2, buf3, output_buf, test_performance);
+		ret_ev.wait();
+	}
+	else
+	{
+		std::cout << "  == run OpenCL kernel." << std::endl;
+		auto ret_ev = launchOpenCLKernelOnline(queue, kernel_source, "rope_ref_11982042700243959200_0_0__sa", params, ev, test_performance);
+		ret_ev.wait();
 	}
 
-	std::cout << std::endl;
-	std::cout << "  == Input and Ouput are " << (diff_num == 0 ? "Same." : "Not Same.") << std::endl;
+	// Print IN/OUT
+	if (!test_performance)
+	{
+		std::cout << "  == Compare input and output:" << std::endl;
+		int diff_num = 0;
+		for (size_t i = 0; i < output_expected.data.size(); i++)
+		{
+			if (fabs(output_expected.data[i] - output_buf[i]) > 0.00001f)
+			{
+				diff_num++;
+				std::cout << "    output_expected[" << i << "] = " << output_expected.data[i] << " VS output_buf[" << i << "] = " << output_buf[i] << std::endl;
+			}
+			if (diff_num > 5)
+			{
+				break;
+			}
+		}
+
+		std::cout << std::endl;
+		std::cout << "  == Input and Ouput are " << (diff_num == 0 ? "Same." : "Not Same.") << std::endl;
+	}
+
 	sycl::free(buf0, queue);
 	sycl::free(buf1, queue);
 	sycl::free(buf2, queue);

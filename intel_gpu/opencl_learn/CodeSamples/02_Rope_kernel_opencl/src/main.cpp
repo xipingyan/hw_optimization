@@ -30,6 +30,23 @@ static std::string load_kernel(std::string kernel_fn)
 
 int main()
 {
+	std::cout << "== Debug MACRO tip:" << std::endl;
+	std::cout << "  Default:        test accuracy only." << std::endl;
+	std::cout << "  PERFORMANCE=1:  Test performance only." << std::endl;
+	std::string options = "-cl-mad-enable -cl-std=CL2.0";
+	std::cout << "  USE_OPTION=1:   Build kernel with option:" << options << std::endl;
+
+	bool test_performance = false;
+	if (std::getenv("PERFORMANCE"))
+	{
+		test_performance = std::getenv("PERFORMANCE") == std::string("1");
+	}
+	bool use_option = false;
+	if (std::getenv("USE_OPTION"))
+	{
+		use_option = std::getenv("USE_OPTION") == std::string("1");
+	}
+
 	std::cout << "== 02_Rope_kernel_opencl." << std::endl;
 	// get all platforms (drivers)
 	std::vector<cl::Platform> all_platforms;
@@ -69,7 +86,8 @@ int main()
 
 	std::cout << "== Construct program with source and context." << std::endl;
 	cl::Program program(context, sources);
-	if (program.build({default_device}) != CL_SUCCESS)
+
+	if (program.build({default_device}, use_option ? options.c_str() : "") != CL_SUCCESS)
 	{
 		std::cout << " Error building: " << program.getBuildInfo<CL_PROGRAM_BUILD_LOG>(default_device) << "\n";
 		exit(1);
@@ -93,7 +111,8 @@ int main()
 	auto input_1 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src0.txt");
 	auto input_2 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src1.txt");
 	auto input_3 = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_src2.txt");
-	auto output_expected = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_dst0.txt");
+	// auto output_expected = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_dst0.txt");
+	auto output_expected = load_dump_data(root_path + "program1_network1_0_rope___module.model.layers.0.self_attn_aten__add_Add_dst0_master.txt");
 
 	// create buffers on the device
 	cl::Buffer inp_buf_0(context, CL_MEM_READ_ONLY, sizeof(int) * input_0.data.size());
@@ -129,13 +148,15 @@ int main()
 
 	auto kernel_name = kernel_add.getInfo<CL_KERNEL_FUNCTION_NAME>();
 	std::cout << "== Test get kernel name from cl::Kernel, kernel_name = " << kernel_name << std::endl;
-	for (size_t i = 0; i < 15; i++)
+	size_t loop_num = test_performance ? 15 : 1;
+	for (size_t i = 0; i < loop_num; i++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
 		queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(1, 14, 192), cl::NDRange(1, 2, 192));
 		queue.finish();
 		auto t2 = std::chrono::high_resolution_clock::now();
-		std::cout << "== Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+		if (test_performance)
+			std::cout << "== Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
 	}
 
 	std::cout << "== Read result." << std::endl;
@@ -143,14 +164,17 @@ int main()
 	ushort* output = (ushort*)malloc(sizeof(ushort) * output_expected.data.size());
 	queue.enqueueReadBuffer(out_buf_0, CL_TRUE, 0, sizeof(ushort) * output_expected.data.size(), output);
 
-	std::cout << "== Start compare result with expected.\n";
-	bool is_expected = true;
-	for (int i = 0; i < output_expected.data.size(); i++)
+	if (!test_performance)
 	{
-		if (std::to_string(output_expected.data[i]) != std::to_string(half_to_float(output[i])))
+		std::cout << "== Start compare result with expected.\n";
+		bool is_expected = true;
+		for (int i = 0; i < output_expected.data.size(); i++)
 		{
-			std::cout << "Index: " << i << " Result " << half_to_float(output[i]) << "!=" << " Expected " << output_expected.data[i] << std::endl;
-			is_expected = false;
+			if (std::to_string(output_expected.data[i]) != std::to_string(half_to_float(output[i])))
+			{
+				std::cout << "Index: " << i << " Result " << half_to_float(output[i]) << "!=" << " Expected " << output_expected.data[i] << std::endl;
+				is_expected = false;
+			}
 		}
 	}
 

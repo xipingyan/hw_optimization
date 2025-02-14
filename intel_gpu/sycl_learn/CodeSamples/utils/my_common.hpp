@@ -81,3 +81,11 @@ inline std::string usm_alloc_2_str(sycl::usm::alloc mem_type)
 	}
 	return std::string();
 }
+
+inline bool get_env(std::string env) {
+	auto env_str = std::getenv(env.c_str());
+	if (env_str && std::string("1") == env_str) {
+		return true;
+	}
+	return false;
+}
