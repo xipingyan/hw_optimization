@@ -158,6 +158,59 @@ static sycl::event launchSyclKernel(sycl::queue &q, int *buf0, sycl::half *buf1,
 	return ret_ev;
 }
 
+static sycl::event launchSyclKernel_exp_shape(sycl::queue &q, sycl::half *buf1, sycl::half *buf2, sycl::half *buf3, sycl::half *out_buf, bool test_performance)
+{
+	sycl::nd_range ndr = sycl::nd_range{sycl::range{1, 14, 192}, sycl::range{1, 2, 192}};
+	auto* input = buf1;
+	auto* cos = buf2;
+	auto* sin = buf3;
+	auto* output = out_buf;
+
+	// 0, 1, 2, 3, 4, 5, 6,  7,  8, 9,10,11,12,13,14,15,16, 17, 18,19,20,21,22,23,24,25,26, 27,28,29,30,31,32, 33
+	//{1, 6, 1, 1, 1, 1, 14, 64, 0, 4, 1, 1, 1, 1, 1, 1, 6, 64, 1, 1, 1, 1, 1, 1, 6, 64, 1, 14, 1, 1, 1, 1, 6, 64}
+
+	sycl::event ret_ev;
+	size_t loop_num = test_performance ? 15 : 1;
+	for (size_t i = 0; i < loop_num; i++)
+	{
+		auto t1 = std::chrono::high_resolution_clock::now();
+		q.submit([&](sycl::handler &cgh)
+				 { 
+					// auto out = sycl::stream(1024, 768, cgh);
+					cgh.parallel_for<class rope_sycl_exp_shape>(ndr, [=](sycl::nd_item<3> itm)
+													 {
+										const uint b = itm.get_global_id(0);
+										const uint h = itm.get_global_id(1);
+										const uint p = (uint)itm.get_global_id(2) / 32;
+										const uint r = (uint)itm.get_global_id(2) % 32;
+
+										uint input_idx = (h) * 64 + (p) * 1152 + (b) * 6912;
+
+										uint cos_sin_b = b < 1 ? b : 0;
+										uint cos_sin_h = h < 1 ? h : 0;
+										uint cos_sin_p = p;
+										cos_sin_p = cos_sin_p < 6 ? cos_sin_p : 0;
+
+										uint cos_sin_idx = (cos_sin_p) * 64 + (cos_sin_h) * 384 + (cos_sin_b) * 384;
+										uint cos_idx = cos_sin_idx;
+										uint sin_idx = cos_sin_idx;
+
+										uint output_idx = (p) * 64 + (h) * 384 + (b) * 5376;
+										sycl::half in1 = input[input_idx + r];
+										sycl::half in2 = input[input_idx + 32 + r];
+										output[output_idx + r] = cos[cos_idx + r] * in1 - sin[sin_idx + r] * in2;
+										output[output_idx + 32 + r] = cos[cos_idx + 32 + r] * in2 +
+																	  sin[sin_idx + 32 + r] * in1;
+										// out << "output[" << output_idx << "]=" << output[output_idx + r] << sycl::endl;
+																	   }); })
+			.wait();
+		auto t2 = std::chrono::high_resolution_clock::now();
+		if (test_performance)
+			std::cout << "  == Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+	}
+	return ret_ev;
+}
+
 int test_sycl_olc_interoperate_l0_backend_rope_ref()
 {
 	std::cout << "  default: Test OpenCL kernel in sycl pipeline." << std::endl;
@@ -207,33 +260,33 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	auto buf1 = input1.to_half(queue);
 	auto buf2 = input2.to_half(queue);
 	auto buf3 = input3.to_half(queue);
-	sycl::buffer param_0(reinterpret_cast<uint8_t *>(buf0), sycl::range{input0.data.size() * sizeof(int)});
-	sycl::buffer param_1(reinterpret_cast<uint8_t *>(buf1), sycl::range{input1.data.size() * sizeof(sycl::half)});
-	sycl::buffer param_2(reinterpret_cast<uint8_t *>(buf2), sycl::range{input2.data.size() * sizeof(sycl::half)});
-	sycl::buffer param_3(reinterpret_cast<uint8_t *>(buf3), sycl::range{input3.data.size() * sizeof(sycl::half)});
-	params.push_back({param_0, false});
-	params.push_back({param_1, false});
-	params.push_back({param_2, false});
-	params.push_back({param_3, false});
-
 	// for (size_t i = 0; i < input2.data.size(); i++) {
 	// 	std::cout << buf2[i] << ", ";
 	// }
 	// std::cout << std::endl;
-
 	auto output_buf = sycl::malloc_shared<sycl::half>(output_expected.data.size(), queue);
-	sycl::buffer param_4(reinterpret_cast<uint8_t *>(output_buf), sycl::range{output_expected.data.size() * sizeof(sycl::half)});
-	params.push_back({param_4, true});
 
 	if (test_sycl_kernel)
 	{
 		std::cout << "  == run sycl kernel." << std::endl;
-		auto ret_ev = launchSyclKernel(queue, buf0, buf1, buf2, buf3, output_buf, test_performance);
+		// auto ret_ev = launchSyclKernel(queue, buf0, buf1, buf2, buf3, output_buf, test_performance);
+		auto ret_ev = launchSyclKernel_exp_shape(queue, buf1, buf2, buf3, output_buf, test_performance);
 		ret_ev.wait();
 	}
 	else
 	{
 		std::cout << "  == run OpenCL kernel." << std::endl;
+		sycl::buffer param_0(reinterpret_cast<uint8_t *>(buf0), sycl::range{input0.data.size() * sizeof(int)});
+		sycl::buffer param_1(reinterpret_cast<uint8_t *>(buf1), sycl::range{input1.data.size() * sizeof(sycl::half)});
+		sycl::buffer param_2(reinterpret_cast<uint8_t *>(buf2), sycl::range{input2.data.size() * sizeof(sycl::half)});
+		sycl::buffer param_3(reinterpret_cast<uint8_t *>(buf3), sycl::range{input3.data.size() * sizeof(sycl::half)});
+		params.push_back({param_0, false});
+		params.push_back({param_1, false});
+		params.push_back({param_2, false});
+		params.push_back({param_3, false});
+		sycl::buffer param_4(reinterpret_cast<uint8_t *>(output_buf), sycl::range{output_expected.data.size() * sizeof(sycl::half)});
+		params.push_back({param_4, true});
+
 		auto ret_ev = launchOpenCLKernelOnline(queue, kernel_source, "rope_ref_11982042700243959200_0_0__sa", params, ev, test_performance);
 		ret_ev.wait();
 	}
