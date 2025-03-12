@@ -2,6 +2,7 @@
 
 #include <stdio.h>
 #include <iostream>
+
 #include <CL/opencl.hpp>
 #include <stddef.h>
 #include <stdint.h>
@@ -69,10 +70,10 @@ int main()
 
 	// get default device of the default platform
 	std::vector<cl::Device> all_devices;
-	default_platform.getDevices(CL_DEVICE_TYPE_ALL, &all_devices);
+	default_platform.getDevices(CL_DEVICE_TYPE_GPU, &all_devices);
 	if (all_devices.size() == 0)
 	{
-		std::cout << " No devices found. Check OpenCL installation!\n";
+		std::cout << " No GPU device is found. Check OpenCL installation!\n";
 		exit(1);
 	}
 	cl::Device default_device = all_devices[0];
