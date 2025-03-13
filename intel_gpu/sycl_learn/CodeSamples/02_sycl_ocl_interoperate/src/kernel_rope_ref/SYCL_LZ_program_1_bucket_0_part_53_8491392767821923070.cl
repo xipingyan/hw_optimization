@@ -3109,8 +3109,8 @@ KERNEL(rope_ref)(
  output[output_idx + r] = cos[cos_idx + r] * in1 - sin[sin_idx + r] * in2;
  output[output_idx + HALF_ROTARY_NDIMS + r] = cos[cos_idx + HALF_ROTARY_NDIMS + r] * in2 +
  sin[sin_idx + HALF_ROTARY_NDIMS + r] * in1;
-  printf("output[%d]=%f\n", output_idx + r, output[output_idx + r]);
-  printf("output[%d]=%f\n", output_idx + HALF_ROTARY_NDIMS + r, output[output_idx + HALF_ROTARY_NDIMS + r]);
+ // printf("output[%d]=%f\n", output_idx + r, output[output_idx + r]);
+ // printf("output[%d]=%f\n", output_idx + HALF_ROTARY_NDIMS + r, output[output_idx + HALF_ROTARY_NDIMS + r]);
 }
 #endif
 #undef KERNEL

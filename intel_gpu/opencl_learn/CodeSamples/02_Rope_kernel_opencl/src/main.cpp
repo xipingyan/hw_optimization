@@ -85,7 +85,9 @@ int main()
 	sources.push_back({kernel_code.c_str(), kernel_code.length()});
 
 	std::cout << "== Construct program with source and context." << std::endl;
+	
 	cl::Program program(context, sources);
+	program.build({default_device}, "-cl-mad-enable -cl-std=CL2.0");
 
 	if (program.build({default_device}, use_option ? options.c_str() : "") != CL_SUCCESS)
 	{

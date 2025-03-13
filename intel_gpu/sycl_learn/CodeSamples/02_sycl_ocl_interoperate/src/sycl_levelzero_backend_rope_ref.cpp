@@ -213,17 +213,21 @@ static sycl::event launchSyclKernel_exp_shape(sycl::queue &q, sycl::half *buf1, 
 
 int test_sycl_olc_interoperate_l0_backend_rope_ref()
 {
-	std::cout << "  default: Test OpenCL kernel in sycl pipeline." << std::endl;
+	std::cout << "  OCL_KERNEL=1:  [Default] SYCL pipeline + OpenCL C kernel." << std::endl;
 	std::cout << "  SYCL_KERNEL=1: Test SYCL kernel in sycl pipeline.\n" << std::endl;
 	std::cout << "== Test: " << __FUNCTION__ << ", " << __FILE__ << ":" << __LINE__ << std::endl;
 
 	bool test_performance = get_env("PERFORMANCE");
 	bool test_sycl_kernel = get_env("SYCL_KERNEL");
+	if (get_env("OCL_KERNEL")) {
+		test_sycl_kernel = false;
+	}
+	std::cout << "  == test_sycl_kernel = " << test_sycl_kernel << std::endl;
 
 	// It's hard to read for original cl file.
 	// Convert to clean code via:
 	// $ cpp original.cl > clean.cl
-	std::string kernel_path = "../02_sycl_ocl_interoperate/src/kernel_rope_ref/";
+	std::string kernel_path = "../src/kernel_rope_ref/";
 	std::string kernel_source = load_kernel(kernel_path + "SYCL_LZ_program_1_bucket_0_part_53_8491392767821923070.cl");
 	// std::cout << "  kernel_source = " << kernel_source << std::endl;
 
@@ -264,7 +268,7 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	// 	std::cout << buf2[i] << ", ";
 	// }
 	// std::cout << std::endl;
-	auto output_buf = sycl::malloc_shared<sycl::half>(output_expected.data.size(), queue);
+	auto* output_buf = sycl::malloc_shared<sycl::half>(output_expected.data.size(), queue);
 
 	if (test_sycl_kernel)
 	{

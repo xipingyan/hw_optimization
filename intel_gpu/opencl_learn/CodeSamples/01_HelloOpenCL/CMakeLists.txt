@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.0)
 
 set(PRJ_NAME 01_HelloOpenCL)
-project(${PRJ_NAME} LANGUAGES C)
+project(${PRJ_NAME} LANGUAGES C CXX)
 
 find_package(OpenCL REQUIRED)
 
