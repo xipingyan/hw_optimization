@@ -92,3 +92,15 @@ DumpData load_dump_data(std::string fn) {
     std::cout << "Parsed dump data=" << dd.to_string() << std::endl;
     return dd;
 }
+
+#include <iostream>
+#include <sys/stat.h>
+bool check_path_exist(const std::string &dir)
+{
+    // Structure which would store the metadata
+    struct stat sb;
+    // Calls the function with path as argument
+    // If the file/directory exists at the path returns 0
+    // If block executes if path exists
+    return stat(dir.c_str(), &sb) == 0 ? true : false;
+}

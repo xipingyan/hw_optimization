@@ -21,3 +21,5 @@ struct DumpData
     int* to_int(sycl::queue queue);
 };
 DumpData load_dump_data(std::string fn);
+
+bool check_path_exist(const std::string& path);

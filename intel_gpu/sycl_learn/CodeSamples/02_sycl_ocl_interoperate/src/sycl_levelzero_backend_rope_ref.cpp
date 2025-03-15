@@ -42,11 +42,17 @@ static std::string load_kernel(std::string kernel_fn)
 
 		return {std::move(ret)};
 	}
+	else
+	{
+		std::cout << "  == Fail: can't read kernle source: " << kernel_fn << std::endl;
+		exit(0);
+	}
+
 	return std::string();
 }
 
 static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
-											std::string func_name, std::vector<std::pair<sycl::buffer<uint8_t, 1>, bool>> &params,
+											std::string func_name, std::vector<void*> &params,
 											sycl::event &dep_event, bool test_performance)
 {
 	std::cout << "  == Start to kernel_bundle opencl source" << std::endl;
@@ -85,16 +91,7 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 
 						for (int i = 0; i < params.size(); i++)
 						{
-							if (params[i].second)
-							{
-								sycl::accessor acc_param{params[i].first, cgh, sycl::read_write};
-								cgh.set_arg(i, acc_param);
-							}
-							else
-							{
-								sycl::accessor acc_param{params[i].first, cgh, sycl::read_only};
-								cgh.set_arg(i, acc_param);
-							}
+							cgh.set_arg(i, params[i]);
 						}
 
 						// Invoke the kernel over an nd-range.
@@ -228,6 +225,10 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	// Convert to clean code via:
 	// $ cpp original.cl > clean.cl
 	std::string kernel_path = "../src/kernel_rope_ref/";
+	if (!check_path_exist(kernel_path))
+	{
+		kernel_path = "../02_sycl_ocl_interoperate/src/kernel_rope_ref/";
+	}
 	std::string kernel_source = load_kernel(kernel_path + "SYCL_LZ_program_1_bucket_0_part_53_8491392767821923070.cl");
 	// std::cout << "  kernel_source = " << kernel_source << std::endl;
 
@@ -238,7 +239,7 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 			  << std::endl;
 
 	sycl::event ev;
-	std::vector<std::pair<sycl::buffer<uint8_t, 1>, bool>> params;
+	std::vector<void*> params;
 
 	// gws=[1, 14, 192] lws=[1, 2, 192]
 	// input0: data_type=i32, {1, 6, 1, 1, 1, 1, 14, 64, 0, 4, 1, 1, 1, 1, 1, 1, 6, 64, 1, 1, 1, 1, 1, 1, 6, 64, 1, 14, 1, 1, 1, 1, 6, 64}
@@ -280,16 +281,11 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	else
 	{
 		std::cout << "  == run OpenCL kernel." << std::endl;
-		sycl::buffer param_0(reinterpret_cast<uint8_t *>(buf0), sycl::range{input0.data.size() * sizeof(int)});
-		sycl::buffer param_1(reinterpret_cast<uint8_t *>(buf1), sycl::range{input1.data.size() * sizeof(sycl::half)});
-		sycl::buffer param_2(reinterpret_cast<uint8_t *>(buf2), sycl::range{input2.data.size() * sizeof(sycl::half)});
-		sycl::buffer param_3(reinterpret_cast<uint8_t *>(buf3), sycl::range{input3.data.size() * sizeof(sycl::half)});
-		params.push_back({param_0, false});
-		params.push_back({param_1, false});
-		params.push_back({param_2, false});
-		params.push_back({param_3, false});
-		sycl::buffer param_4(reinterpret_cast<uint8_t *>(output_buf), sycl::range{output_expected.data.size() * sizeof(sycl::half)});
-		params.push_back({param_4, true});
+		params.emplace_back(buf0);
+		params.emplace_back(buf1);
+		params.emplace_back(buf2);
+		params.emplace_back(buf3);
+		params.emplace_back(output_buf);
 
 		auto ret_ev = launchOpenCLKernelOnline(queue, kernel_source, "rope_ref_11982042700243959200_0_0__sa", params, ev, test_performance);
 		ret_ev.wait();
