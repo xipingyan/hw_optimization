@@ -81,7 +81,7 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 
 	std::cout << "  == Start to submit" << std::endl;
 	sycl::event ret_ev;
-	size_t loop_num = test_performance ? 15 : 1;
+	size_t loop_num = test_performance ? 150 : 1;
 	for (size_t i = 0; i < loop_num; i++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
@@ -114,7 +114,7 @@ static sycl::event launchSyclKernel(sycl::queue &q, int *buf0, sycl::half *buf1,
 	auto* output = out_buf;
 
 	sycl::event ret_ev;
-	size_t loop_num = test_performance ? 15 : 1;
+	size_t loop_num = test_performance ? 150 : 1;
 	for (size_t i = 0; i < loop_num; i++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
@@ -232,10 +232,13 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	std::string kernel_source = load_kernel(kernel_path + "SYCL_LZ_program_1_bucket_0_part_53_8491392767821923070.cl");
 	// std::cout << "  kernel_source = " << kernel_source << std::endl;
 
-	auto queue = sycl::queue(sycl::gpu_selector_v);
+	auto queue = sycl::queue(sycl::gpu_selector_v, sycl::property::queue::in_order{});
 	std::cout << "  == Using "
 			  << queue.get_device().get_info<sycl::info::device::name>()
 			  << ", Backend: " << queue.get_backend()
+			  << std::endl;
+
+	std::cout << "  == queue in_order = " << queue.is_in_order()
 			  << std::endl;
 
 	sycl::event ev;

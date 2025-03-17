@@ -6,7 +6,12 @@
 /*
 	Test SPIR-V Kernel:
 	Original kernel: opencl_learn/CodeSamples/01_HelloOpenCL/src/simple_add.cl
-	Convert SPIR-V, refer:  opencl_learn/CodeSamples/01_HelloOpenCL/README.md
+
+	Convert SPIR-V, refer:
+	opencl_learn/CodeSamples/01_HelloOpenCL/README.md
+
+	Or: use ocloc to convert:
+	$ ocloc -file xx.cl -device dg2 -output xx
 */
 
 bool spirv_kernel_simple_add(ze_device_handle_t hDevice, ze_context_handle_t hContext, ze_module_handle_t &hModule, ze_kernel_handle_t &hKernel)

@@ -14,3 +14,7 @@ Refer: https://github.com/KhronosGroup/OpenCL-Guide/blob/main/chapters/os_toolin
 
     llvm-spirv simple_add.bc -o simple_add.spv
 
+**Way2**:
+
+    $ ocloc -file xx.cl -device dg2 -output xx
+
