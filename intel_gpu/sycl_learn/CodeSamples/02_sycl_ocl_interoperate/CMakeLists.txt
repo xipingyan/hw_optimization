@@ -26,4 +26,7 @@ add_executable(${PRJ_NAME}
 )
 
 add_sycl_to_target(TARGET ${PRJ_NAME}  SOURCES ${SRC} )
-target_link_libraries(${PRJ_NAME} PRIVATE OpenCL::OpenCL)
+target_link_libraries(${PRJ_NAME} PRIVATE OpenCL::OpenCL
+ze_loader
+ze_tracing_layer
+ze_validation_layer)

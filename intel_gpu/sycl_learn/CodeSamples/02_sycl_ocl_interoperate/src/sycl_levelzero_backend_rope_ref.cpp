@@ -82,7 +82,7 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 	std::cout << "  == Start to submit" << std::endl;
 	sycl::event ret_ev;
 	size_t loop_num = test_performance ? 150 : 1;
-	for (size_t i = 0; i < loop_num; i++)
+	for (size_t idx = 0; idx < loop_num; idx++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
 		ret_ev = q.submit([&](sycl::handler &cgh)
@@ -98,8 +98,18 @@ static sycl::event launchOpenCLKernelOnline(sycl::queue &q, std::string source,
 						cgh.parallel_for(ndr, k); });
 		ret_ev.wait();
 		auto t2 = std::chrono::high_resolution_clock::now();
-		if (test_performance)
-			std::cout << "  == Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+		if (test_performance) {
+			auto tm = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+			if ( idx >= 100) {
+				static int64_t sum = 0;
+				static int count = 0;
+				sum+= tm;
+				count++;
+				std::cout << "  == Infer " << idx << ", time = " << tm << " micro sec. mean: " << (float)sum / count << std::endl;
+			}
+			else
+				std::cout << "  == Infer " << idx << ", time = " << tm << " micro sec." << std::endl;
+		}
 	}
 	return ret_ev;
 }
@@ -292,6 +302,10 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 
 		auto ret_ev = launchOpenCLKernelOnline(queue, kernel_source, "rope_ref_11982042700243959200_0_0__sa", params, ev, test_performance);
 		ret_ev.wait();
+
+		// Still not finish. so just backup.
+		// auto ret_ev = launchOpenCLKernelOnlineLevelZero(queue, kernel_source, "rope_ref_11982042700243959200_0_0__sa", params, ev, test_performance);
+		// ret_ev.wait();
 	}
 
 	// Print IN/OUT

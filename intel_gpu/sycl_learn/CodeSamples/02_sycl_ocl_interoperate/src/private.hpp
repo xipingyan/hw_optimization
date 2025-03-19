@@ -23,3 +23,7 @@ struct DumpData
 DumpData load_dump_data(std::string fn);
 
 bool check_path_exist(const std::string& path);
+
+sycl::event launchOpenCLKernelOnlineLevelZero(sycl::queue &q, std::string source,
+                                              std::string func_name, std::vector<void *> &params,
+                                              sycl::event &dep_event, bool test_performance);
