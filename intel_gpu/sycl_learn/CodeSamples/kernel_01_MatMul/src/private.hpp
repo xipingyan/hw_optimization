@@ -126,8 +126,9 @@ struct MMParamsOutput
 float matmal_kernel_ref(MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output);
 float matmal_kernel_openblas(MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output);
 
-float matmal_kernel_1(sycl::queue &q, MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output, int group_x = 16, int group_y = 16);
-float matmal_kernel_1_inp_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR input, MMParamsOutput<float>::PTR output, int group_x = 16, int group_y = 16);
+float matmal_kernel_1(sycl::queue &q, MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output, int group_x = 16, int group_y = 16, bool test_performance = false);
+float matmal_kernel_1_inp_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR input, MMParamsOutput<float>::PTR output, int group_x = 16, int group_y = 16, bool test_performance = false);
+float matmal_kernel_1_io_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR input, MMParamsOutput<sycl::half>::PTR output, int group_x = 16, int group_y = 16, bool test_performance = false);
 
 float add_kernel_1(sycl::queue &q, float *data, size_t len, float &output, int group_x = 1);
 float add_kernel_1_f16(sycl::queue &q, sycl::half *data, size_t len, sycl::half &output, int group_x);

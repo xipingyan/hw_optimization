@@ -7,7 +7,8 @@
 #include "my_common.hpp"
 #include "private.hpp"
 
-static bool bCmpAcc = std::getenv("ACC");
+static bool bCmpAcc = false;
+static bool g_test_sycl_matmul_perf = false;
 
 void test_matmul_01(sycl::queue queue)
 {
@@ -35,17 +36,17 @@ void test_matmul_01(sycl::queue queue)
             matmal_kernel_openblas(inputs, output_openblas);
         }
 
-        sycl::queue queue_cpu(sycl::cpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
-        matmal_kernel_1(queue_cpu, inputs, output_cpu, group_x, group_y);
+        // sycl::queue queue_cpu(sycl::cpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
+        // matmal_kernel_1(queue_cpu, inputs, output_cpu, group_x, group_y);
 
         sycl::queue queue_gpu(sycl::gpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
 
         float min_tm_f32 = std::numeric_limits<float>::max();
         float min_tm_f16 = std::numeric_limits<float>::max();
-        for (auto i = 0; i < 5; i++)
+        for (auto i = 0; i < 1; i++)
         {
             min_tm_f32 = fmin(min_tm_f32, matmal_kernel_1(queue_gpu, inputs, output_sycl_gpu_1, group_x, group_y));
-            min_tm_f16 = fmin(min_tm_f16, matmal_kernel_1_inp_f16(queue_gpu, inputs_f16, output_sycl_gpu_2, group_x, group_y));
+            // min_tm_f16 = fmin(min_tm_f16, matmal_kernel_1_inp_f16(queue_gpu, inputs_f16, output_sycl_gpu_2, group_x, group_y));
 
             if (bCmpAcc && i == 0)
             {
@@ -68,6 +69,34 @@ void test_matmul_01(sycl::queue queue)
     for (size_t i = 0; i < mm_szs.size(); i++)
     {
         std::cout << "== matmul size = " << mm_szs[i] << ", group size = 16, min tm_f32 = " << durations[i].first << " ms, min tm_f16 = " << durations[i].second << " ms" << std::endl;
+    }
+}
+
+
+void test_matmul_sycl_performance(sycl::queue queue)
+{
+    std::cout << "== Start: " << __FUNCTION__ << std::endl;
+    // std::vector<size_t> mm_szs = {512, 1024, 2048, 4096};
+    std::vector<size_t> mm_szs = {4096};
+    std::vector<std::pair<float,float>> durations;
+    int group_x = 16;
+    int group_y = 16;
+    int iter = 8;
+
+    for (auto mm_sz : mm_szs)
+    {
+        auto inputs = MMParamsInput<float>::create(mm_sz, 4096, mm_sz);
+        auto inputs_f16 = cvt_f32_to_half(inputs);
+        auto output_ref = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_cpu = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_openblas = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_sycl_gpu_1 = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_sycl_gpu_2 = MMParamsOutput<float>::create(mm_sz, mm_sz);
+        auto output_sycl_gpu_3 = MMParamsOutput<sycl::half>::create(mm_sz, mm_sz);
+
+        matmal_kernel_1(queue, inputs, output_sycl_gpu_1, group_x, group_y, true);
+        matmal_kernel_1_inp_f16(queue, inputs_f16, output_sycl_gpu_2, group_x, group_y, true);
+        matmal_kernel_1_io_f16(queue, inputs_f16, output_sycl_gpu_3, group_x, group_y, true);
     }
 }
 
@@ -133,7 +162,11 @@ int main()
     std::cout << "**********************************" << std::endl;
     std::cout << " Compare accuracy with reference result." << std::endl;
     std::cout << " $ export ACC=1" << std::endl;
+    std::cout << " $ export SYCL_MM_PERFORAMNCE=1, Test SYCL MatMul Kernel performance." << std::endl;
+    std::cout << " $ export ONEAPI_DEVICE_SELECTOR=OPENCL:GPU, Set SYCL backend to OpenCL." << std::endl;
     std::cout << "**********************************" << std::endl;
+    bCmpAcc = std::getenv("ACC");
+    g_test_sycl_matmul_perf = std::getenv("SYCL_MM_PERFORAMNCE");
 
     sycl::queue queue(sycl::gpu_selector_v, sycl::property_list{sycl::property::queue::enable_profiling{}});
 
@@ -144,8 +177,14 @@ int main()
 
     DEBUG_LOG << "== prepare input." << std::endl;
 
-    test_matmul_01(queue);
-    // test_add(queue);
-
+    if (g_test_sycl_matmul_perf)
+    {
+        test_matmul_sycl_performance(queue);
+    }
+    else
+    {
+        test_matmul_01(queue);
+        // test_add(queue);
+    }
     return 0;
 }

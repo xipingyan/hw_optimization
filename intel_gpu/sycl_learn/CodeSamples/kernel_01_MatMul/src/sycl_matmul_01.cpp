@@ -6,7 +6,8 @@
 // Version:01, My original implementation.
 // Reference: https://github.com/intel/llvm/issues/8163
 
-float matmal_kernel_1(sycl::queue &q, MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output, int group_x, int group_y)
+float matmal_kernel_1(sycl::queue &q, MMParamsInput<float>::PTR input, MMParamsOutput<float>::PTR output,
+                      int group_x, int group_y, bool test_performance)
 {
     const size_t &M = input->_m;
     const size_t &K = input->_k;
@@ -24,9 +25,13 @@ float matmal_kernel_1(sycl::queue &q, MMParamsInput<float>::PTR input, MMParamsO
     sycl::buffer b(input->_b, sycl::range{K * N});
     sycl::buffer c(output->_c, sycl::range{M * N});
 
-    auto t1 = std::chrono::high_resolution_clock::now();
-    auto e = q.submit([&](sycl::handler &h)
-                      {
+    int loop_num = test_performance ? 15 : 1;
+    double last_tm = 0;
+    for (int i = 0; i < loop_num; i++)
+    {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        auto e = q.submit([&](sycl::handler &h)
+                          {
         auto A = a.get_access<sycl::access::mode::read>(h);
         auto B = b.get_access<sycl::access::mode::read>(h);
         auto C = c.get_access<sycl::access::mode::read_write>(h);
@@ -39,22 +44,23 @@ float matmal_kernel_1(sycl::queue &q, MMParamsInput<float>::PTR input, MMParamsO
                                                     for (int k = 0; k < K; k++){
                                                         C[i * N + j] += A[i * K + k] * B[k * N + j];}
                                                     }); });
-    e.wait();
-    auto t2 = std::chrono::high_resolution_clock::now();
+        e.wait();
+        auto t2 = std::chrono::high_resolution_clock::now();
 
-    auto kernel_duration =
-        (e.get_profiling_info<sycl::info::event_profiling::command_end>() -
-         e.get_profiling_info<sycl::info::event_profiling::command_start>());
-    auto tm = kernel_duration / 1e+6;
+        auto kernel_duration =
+            (e.get_profiling_info<sycl::info::event_profiling::command_end>() -
+             e.get_profiling_info<sycl::info::event_profiling::command_start>());
+        last_tm = kernel_duration / 1e+6;
 
-    auto cpu_dur = tm_diff_ms(t1, t2);
+        auto cpu_dur = tm_diff_ms(t1, t2);
 
-    std::cout << "  Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
-              << std::endl;
-    return tm;
+        std::cout << "  " << i << " Kernel Execution Time: " << last_tm << " ms, cpu time: " << cpu_dur << " ms\n"
+                  << std::endl;
+    }
+    return last_tm;
 }
 
-float matmal_kernel_1_inp_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR input, MMParamsOutput<float>::PTR output, int group_x, int group_y)
+float matmal_kernel_1_inp_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR input, MMParamsOutput<float>::PTR output, int group_x, int group_y, bool test_performance)
 {
     const size_t &M = input->_m;
     const size_t &K = input->_k;
@@ -72,9 +78,14 @@ float matmal_kernel_1_inp_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR inp
     sycl::buffer b(input->_b, sycl::range{K * N});
     sycl::buffer c(output->_c, sycl::range{M * N});
 
-    auto t1 = std::chrono::high_resolution_clock::now();
-    auto e = q.submit([&](sycl::handler &h)
-                      {
+    int loop_num = test_performance ? 15 : 1;
+    double tm = 0;
+    for (int i = 0; i < loop_num; i++)
+    {
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+        auto e = q.submit([&](sycl::handler &h)
+                          {
         auto A = a.get_access<sycl::access::mode::read>(h);
         auto B = b.get_access<sycl::access::mode::read>(h);
         auto C = c.get_access<sycl::access::mode::read_write>(h);
@@ -91,18 +102,77 @@ float matmal_kernel_1_inp_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR inp
                                                     }
                                                     C[i * N + j] += static_cast<float>(tmp);
                                                     }); });
-    e.wait();
-    auto t2 = std::chrono::high_resolution_clock::now();
+        e.wait();
+        auto t2 = std::chrono::high_resolution_clock::now();
 
-    auto kernel_duration =
-        (e.get_profiling_info<sycl::info::event_profiling::command_end>() -
-         e.get_profiling_info<sycl::info::event_profiling::command_start>());
-    auto tm = kernel_duration / 1e+6;
+        auto kernel_duration =
+            (e.get_profiling_info<sycl::info::event_profiling::command_end>() -
+             e.get_profiling_info<sycl::info::event_profiling::command_start>());
+        tm = kernel_duration / 1e+6;
 
-    auto cpu_dur = tm_diff_ms(t1, t2);
+        auto cpu_dur = tm_diff_ms(t1, t2);
 
-    std::cout << "  Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
-              << std::endl;
+        std::cout << "  " << i << "Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
+                  << std::endl;
+    }
+    return tm;
+}
+
+float matmal_kernel_1_io_f16(sycl::queue &q, MMParamsInput<sycl::half>::PTR input, MMParamsOutput<sycl::half>::PTR output, int group_x, int group_y, bool test_performance)
+{
+    const size_t &M = input->_m;
+    const size_t &K = input->_k;
+    const size_t &N = input->_n;
+
+    std::cout << "== Kernel: " << __FUNCTION__ << ", q backend: " << q.get_backend() << std::endl;
+    std::cout << "  Input A  = [" << M << " x " << K << "], B = [" << K << " x " << N << "]" << std::endl;
+    std::cout << "  Output C = [" << M << " x " << N << "]" << std::endl;
+    std::cout << "  WORK_GROUP_SIZE = " << group_x << " x " << group_y << std::endl;
+
+    assert(M == output->_m);
+    assert(N == output->_n);
+
+    sycl::buffer a(input->_a, sycl::range{M * K});
+    sycl::buffer b(input->_b, sycl::range{K * N});
+    sycl::buffer c(output->_c, sycl::range{M * N});
+
+    int loop_num = test_performance ? 15 : 1;
+    double tm = 0;
+    for (int i = 0; i < loop_num; i++)
+    {
+
+        auto t1 = std::chrono::high_resolution_clock::now();
+        auto e = q.submit([&](sycl::handler &h)
+                          {
+        auto A = a.get_access<sycl::access::mode::read>(h);
+        auto B = b.get_access<sycl::access::mode::read>(h);
+        auto C = c.get_access<sycl::access::mode::read_write>(h);
+
+        sycl::range<2> global_size(M, N), wg_size(group_x, group_y);
+
+        h.parallel_for<class mm_io_f16>(sycl::nd_range<2>(global_size, wg_size), [=](sycl::nd_item<2> item)
+                                                  {
+                                                    int i = item.get_global_id(0), j = item.get_global_id(1);
+                                                    sycl::half tmp = 0.f;
+                                                    for (int k = 0; k < K; k++)
+                                                    {
+                                                        tmp += A[i * K + k] * B[k * N + j];
+                                                    }
+                                                    C[i * N + j] += tmp;
+                                                    }); });
+        e.wait();
+        auto t2 = std::chrono::high_resolution_clock::now();
+
+        auto kernel_duration =
+            (e.get_profiling_info<sycl::info::event_profiling::command_end>() -
+             e.get_profiling_info<sycl::info::event_profiling::command_start>());
+        tm = kernel_duration / 1e+6;
+
+        auto cpu_dur = tm_diff_ms(t1, t2);
+
+        std::cout << "  " << i << "Kernel Execution Time: " << tm << " ms, cpu time: " << cpu_dur << " ms\n"
+                  << std::endl;
+    }
     return tm;
 }
 
@@ -160,8 +230,7 @@ float add_kernel_1_f16(sycl::queue &q, sycl::half *data, size_t len, sycl::half 
         for(size_t idx = 0; idx<len; idx++) {
             tmp += A[idx];
         }
-        outp[i] = tmp;}); 
-    });
+        outp[i] = tmp;}); });
 
     e.wait();
 
