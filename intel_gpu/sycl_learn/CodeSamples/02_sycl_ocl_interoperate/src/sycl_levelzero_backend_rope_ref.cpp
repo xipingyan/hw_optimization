@@ -159,8 +159,16 @@ static sycl::event launchSyclKernel(sycl::queue &q, int *buf0, sycl::half *buf1,
 																	   }); })
 			.wait();
 		auto t2 = std::chrono::high_resolution_clock::now();
-		if (test_performance)
-			std::cout << "  == Infer " << i << ", time = " << std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() << " micro sec." << std::endl;
+		if (test_performance) {
+			static int64_t tm_sum = 0;
+			static int tm_count = 0;
+			auto cur_tm = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+			if (i >= 100) {
+				tm_sum += cur_tm;
+				tm_count ++;
+				std::cout << "  == Infer " << i << ", time = " << (float)tm_sum / tm_count << " micro sec." << std::endl;
+			}
+		}
 	}
 	return ret_ev;
 }
@@ -287,8 +295,8 @@ int test_sycl_olc_interoperate_l0_backend_rope_ref()
 	if (test_sycl_kernel)
 	{
 		std::cout << "  == run sycl kernel." << std::endl;
-		// auto ret_ev = launchSyclKernel(queue, buf0, buf1, buf2, buf3, output_buf, test_performance);
-		auto ret_ev = launchSyclKernel_exp_shape(queue, buf1, buf2, buf3, output_buf, test_performance);
+		auto ret_ev = launchSyclKernel(queue, buf0, buf1, buf2, buf3, output_buf, test_performance);
+		// auto ret_ev = launchSyclKernel_exp_shape(queue, buf1, buf2, buf3, output_buf, test_performance);
 		ret_ev.wait();
 	}
 	else
