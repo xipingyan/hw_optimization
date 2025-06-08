@@ -1,9 +1,9 @@
 [submodule "gpu/CodeSamples"]
-	path = gpu/CodeSamples
+	path = gpu_nvidia/CodeSamples
 	url = https://github.com/xipingyan/CodeSamples.git
 [submodule "intel_gpu/levelzero_learn/CodeSamples/level-zero"]
 	path = intel_gpu/levelzero_learn/CodeSamples/level-zero
 	url = https://github.com/oneapi-src/level-zero.git
 [submodule "intel_gpu/pti_gpu_tool_learn/pti-gpu"]
-	path = intel_gpu/pti_gpu_tool_learn/pti-gpu
+	path = gpu_intel/pti_gpu_tool_learn/pti-gpu
 	url = https://github.com/intel/pti-gpu.git
