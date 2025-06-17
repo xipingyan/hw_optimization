@@ -53,8 +53,9 @@ Intel's C for Metal (CM) is a programming language designed to allow developers 
 
 #### levelzero(just for runtime)
 
-    refer: ../levelzero_learn/README.md [Build Level-zero]
-    code workpath: cm_learn/CodeSamples/level-zero
+Refer: [Build Level-zero](https://github.com/xipingyan/hw_optimization/blob/main/gpu_intel/levelzero_learn/README.md#build-level-zero) 
+
+code workpath: cm_learn/CodeSamples/level-zero
 
 # Build Samples and Run
 
