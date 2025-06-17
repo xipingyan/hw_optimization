@@ -20,11 +20,8 @@ Intel's C for Metal (CM) is a programming language designed to allow developers 
 ``Programming guide``: <br>
 
     0: https://www.intel.com/content/www/us/en/developer/articles/technical/intel-c-for-metal-the-precious-metal-for-computing-on-intel-graphics-cards.html
-
     1: https://github.com/intel/cm-compiler/blob/cmc_monorepo_110/clang/Readme.md
     2: https://github.com/intel/cm-compiler
-
-
 
 # HW and SW dependencies
 
@@ -77,4 +74,4 @@ code workpath: cm_learn/CodeSamples/level-zero
 
 # Profiling kernel tool
 
-Refer: sycl_learn/README.md [Tools]
+Refer: [Tools](https://github.com/xipingyan/hw_optimization/blob/main/gpu_intel/sycl_learn/README.md#tools)
