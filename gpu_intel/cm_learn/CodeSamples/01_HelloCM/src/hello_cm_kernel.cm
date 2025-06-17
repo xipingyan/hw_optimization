@@ -1,0 +1,13 @@
+#include "cm/cm.h"
+
+extern "C" _GENX_MAIN_ void hello_world(int threadwidth) {
+    // Gets the x,y coordinates
+    unsigned int x = get_thread_origin_x();
+    unsigned int y = get_thread_origin_y();
+
+    // Converts the x,y coordinates to a linearized thread ID
+    unsigned int threadid = x + y*threadwidth;
+
+    // Prints the thread ID along with a string message
+    printf("%u   Hello from GPU land[cm kernel], x,y=[%u, %u, %d]\n", threadid, x, y, threadwidth);
+}

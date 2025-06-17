@@ -14,7 +14,7 @@ LevelZero test codes: https://github.com/oneapi-src/level-zero-tests.git
 
     source /opt/intel/oneapi/setvars.sh
     cd CodeSamples\level-zero\
-    mkdir build && make install
+    mkdir build && cd build
     cmake -DCMAKE_CXX_COMPILER=icpx -DCMAKE_INSTALL_PREFIX=install ..
     make -j20 && make install
 
