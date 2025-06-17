@@ -5,9 +5,16 @@ extern "C" _GENX_MAIN_ void hello_world(int threadwidth) {
     unsigned int x = get_thread_origin_x();
     unsigned int y = get_thread_origin_y();
 
+    unsigned int cm_g_id_x = cm_group_id(0);
+    unsigned int cm_g_id_y = cm_group_id(1);
+    unsigned int cm_g_id_z = cm_group_id(2);
+
     // Converts the x,y coordinates to a linearized thread ID
     unsigned int threadid = x + y*threadwidth;
 
     // Prints the thread ID along with a string message
-    printf("%u   Hello from GPU land[cm kernel], x,y=[%u, %u, %d]\n", threadid, x, y, threadwidth);
+    printf("%u   Hello from GPU land[cm kernel], x,y=[%u, %u, %d], group_id=[%u, %u, %u]\n", 
+        threadid, x, y, threadwidth,
+        cm_g_id_x, cm_g_id_y, cm_g_id_z
+    );
 }

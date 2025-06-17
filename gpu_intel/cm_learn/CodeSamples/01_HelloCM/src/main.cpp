@@ -1,7 +1,7 @@
 #include <limits>
 
-#include "my_common.hpp"
 #include "ze_api_wrap.hpp"
+#include "my_common.hpp"
 
 /************************************************
  * Convert cm kernle to spv
