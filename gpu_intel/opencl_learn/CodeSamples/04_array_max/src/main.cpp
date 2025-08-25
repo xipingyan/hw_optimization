@@ -11,16 +11,18 @@
 #include "my_ocl.hpp"
 #include "my_common.hpp"
 
-#define SUB_GROUP_SIZE 128
+#define LWS 128
 float run_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel, std::vector<float> &array_data)
 {
 	float output = 0;
 
 	size_t gws = array_data.size();
-	size_t lws = SUB_GROUP_SIZE;
+	size_t lws = LWS;
 	size_t group_sz = gws / lws;
 	// std::cout << "  == Run kernel:" << std::endl;
-	// std::cout << "  group_sz = " << group_sz << std::endl;
+	std::cout << "  group_sz = " << group_sz << std::endl;
+	std::cout << "  gws = " << gws << std::endl;
+	std::cout << "  lws = " << lws << std::endl;
 
 	// Create buffers on the device
 	cl::Buffer buffer_IN_1(context, CL_MEM_READ_ONLY, sizeof(float) * array_data.size());
@@ -51,9 +53,13 @@ float run_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kerne
 float run_ref(std::vector<float> &array_input)
 {
 	std::cout << "  == Run calc max of array reference." << std::endl;
+	auto t1 = std::chrono::high_resolution_clock::now();
 	auto max_iter = std::max_element(array_input.begin(), array_input.end());
 	if (max_iter != array_input.end())
 	{
+		auto t2 = std::chrono::high_resolution_clock::now();
+		auto diff = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+		std::cout << "  CPU host time = " << diff << " micr sec." << std::endl;
 		return *max_iter;
 	}
 	return 0;
@@ -123,7 +129,7 @@ int main()
         0.1f, 0.4f, 0.7f, 0.5f,  // token 2 row
         0.2f, 0.1f, 0.5f, 0.6f   // token 3 row
     };
-	array_input = generate_vec(SUB_GROUP_SIZE * 30);
+	array_input = generate_vec(LWS * 30);
 
 	auto max_ref = run_ref(array_input);
 	auto max_ocl = run_kernel(queue, context, max_kernel, array_input);
@@ -141,7 +147,12 @@ int main()
 	if (loop_num > 0)
 		std::cout << "  Mean time = " << sum_tm / loop_num << " micr sec." << std::endl;
 
-	std::cout << "== Done. max_ref = " << max_ref << ", max_ocl = " << max_ocl << std::endl;
+	std::cout << "== Done. " << std::endl;
+	bool bclose = is_close<float>({max_ref}, {max_ocl});
+	std::cout << "== Result Ref VS OCL: " << (bclose ? "success." : "fail.") << std::endl;
+	if (!bclose)
+		std::cout << "    max_ref = " << max_ref << ", max_ocl = " << max_ocl << std::endl;
+
 	// A770 performance compare
 	// get_array_max_1: host time: 1514 micr sec. kernel time: 526 micro sec.
 	// get_array_max_2: host time: 939  micr sec. kernel time: 14  micro sec.

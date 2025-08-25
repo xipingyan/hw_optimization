@@ -39,9 +39,8 @@ void get_array_max_2(__global const float* input, __local float* local_max_array
 
     const size_t global_ws = get_global_size(0);
     const size_t local_ws = get_local_size(0);
-    const size_t group_ws = global_ws / local_ws;
 
-    // printf("global_id = %zu, local_id = %zu, group_id = %zu, global_ws = %zu, local_ws = %zu, group_ws = %zu\n", global_id, local_id, group_id, global_ws, local_ws, group_ws);
+    // printf("global_id = %zu, local_id = %zu, group_id = %zu, global_ws = %zu, local_ws = %zu\n", global_id, local_id, group_id, global_ws, local_ws);
 
     // 将全局数据加载到本地内存
     local_max_array[local_id] = input[global_id];
@@ -65,11 +64,8 @@ void get_array_max_2(__global const float* input, __local float* local_max_array
     }
 }
 
-// #pragma OPENCL EXTENSION cl_intel_subgroup_clustered_reduce : enable
-// #pragma OPENCL EXTENSION cl_intel_subgroups : enable
-// Methold 3: With reduction，不彻底的reduction
-// local_max_array：每个group内，share同一个地址，把每个group内的max放到local_max_array[0],
-// 最终再使用锁，最终结果和每个group内的local_max_array[0]进行比较。
+
+// Methold 3: 基于sub_group_clustered_reduce_max的归约， 测试失败。
 void get_array_max_3(__global const float* input, __local float* local_max_array, __global float* output, const int size)
 {
 	// Get the work-group ID and the local ID within the work-group.
@@ -79,35 +75,45 @@ void get_array_max_3(__global const float* input, __local float* local_max_array
 
     const size_t global_ws = get_global_size(0);
     const size_t local_ws = get_local_size(0);
-    const size_t group_ws = global_ws / local_ws;
 
-    printf("global_id = %zu, local_id = %zu, group_id = %zu, global_ws = %zu, local_ws = %zu, group_ws = %zu\n", global_id, local_id, group_id, global_ws, local_ws, group_ws);
+    uint sub_group_size = get_sub_group_size();
+    uint sub_group_id = local_id / sub_group_size;
+    uint sub_group_lid = local_id % sub_group_size;
+
+    printf("global_id = %zu, local_id = %zu, group_id = %zu, global_ws = %zu, local_ws = %zu\n", global_id, local_id, group_id, global_ws, local_ws);
 
     float my_value = (global_id < size) ? input[global_id] : -FLT_MAX;
-    
-    /*
+
     // Stage 1: 获取每个subgroup内的最大值
-    float subgroup_max = sub_group_clustered_reduce_max(my_value, CLUSTER_SIZE);
+    float subgroup_max = sub_group_clustered_reduce_max(my_value, sub_group_size);
+ 
     // Stage 2: Store subgroup maximums in shared local memory
-    if (local_id % CLUSTER_SIZE == 0) {
-        local_max_array[local_id / CLUSTER_SIZE] = subgroup_max;
-        printf("      subgroup cluster id = %d, CLUSTER_SIZE=%d, %f, \n", local_id, CLUSTER_SIZE, subgroup_max);
-    }
-    // Wait for all threads in the work-group to finish writing to local memory.
-    barrier(CLK_LOCAL_MEM_FENCE);
-    
-    if (local_id == 0) {
-        local_max_array[0] = max(max(local_max_array[0], local_max_array[1]), max(local_max_array[2], local_max_array[3]));
-        printf("      group_id = %d, %f, \n", group_id, subgroup_max);
+    if (sub_group_lid == 0) {
+        local_max_array[sub_group_lid] = subgroup_max;
+        printf("  local_max_array[%d] = %f, sub_group_size = %d\n", sub_group_lid, local_max_array[sub_group_lid], sub_group_size);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
+
+    // Stage 3: 将每个subgroup中的
+    if (sub_group_id == 0) {
+        float group_max = -INFINITY;
+        for (uint i = 0; i < (local_ws + sub_group_size - 1) / sub_group_size; i++) {
+            if (i * sub_group_size + sub_group_id < local_ws) {
+                group_max = max(group_max, local_max_array[i * sub_group_size +sub_group_lid]);
+            }
+        }
+        group_max = sub_group_clustered_reduce_max(group_max, sub_group_size);
+
+        if (sub_group_lid == 0) {
+            local_max_array[0] = group_max;
+        }
+    }
 
     // Stage 3: 和每一个subgroup的第一个变量进行比较。最终输出结果output。
     if (local_id == 0) {
         AtomicMax(output, local_max_array[0]);
         // printf("      local_id = %d, %f, \n", local_id, local_max_array[0]);
     }
-    */
 }
 
 __kernel void get_array_max(__global const float* input, 
@@ -116,4 +122,5 @@ __kernel void get_array_max(__global const float* input,
                             const int size) {
     // get_array_max_1(input, local_result, output, size);
     get_array_max_2(input, local_result, output, size);
+    // get_array_max_3(input, local_result, output, size);
 }
