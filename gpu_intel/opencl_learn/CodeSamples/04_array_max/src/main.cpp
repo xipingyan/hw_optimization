@@ -141,7 +141,7 @@ int main()
 		max_ocl = run_kernel(queue, context, max_kernel, array_input);
 		auto t2 = std::chrono::high_resolution_clock::now();
 		auto diff = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-		std::cout << "  [" << i << "] host time = " << diff << " micr sec." << std::endl;
+		std::cout << "== [" << i << "] host time = " << diff << " micr sec." << std::endl;
 		sum_tm += diff;
 	}
 	if (loop_num > 0)

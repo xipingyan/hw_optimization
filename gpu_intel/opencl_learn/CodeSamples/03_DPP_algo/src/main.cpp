@@ -9,6 +9,7 @@
 
 #include "kernel_io.hpp"
 #include "dpp_ref.hpp"
+#include "mat_diagonal_max_ref.hpp"
 
 cl::Device get_gpu_device() {
 	// get all platforms (drivers)
@@ -50,6 +51,35 @@ cl::Device get_gpu_device() {
 	cl::Device default_device = all_devices[0];
 
 	return default_device;
+}
+
+float run_max_mat_diagonal_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel_max, Tensor &kernel)
+{
+	#define LWS 128
+	int gws = (kernel.m + LWS - 1) / LWS * LWS;
+	// create buffers on the device
+	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * kernel.get_size());
+	cl::Buffer buffer_local(context, CL_MEM_READ_WRITE, sizeof(float) * LWS);
+	cl::Buffer buffer_output(context, CL_MEM_READ_WRITE, sizeof(float) * 1);
+
+	// write arrays A and B to the device
+	queue.enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * kernel.get_size(), kernel.data);
+
+	kernel_max.setArg(0, buffer_mat);
+	kernel_max.setArg(1, buffer_local);
+	kernel_max.setArg(2, buffer_output);
+	kernel_max.setArg(3, kernel.m);
+
+	queue.enqueueNDRangeKernel(kernel_max, cl::NullRange, cl::NDRange(gws), cl::NDRange(LWS));
+	queue.finish();
+
+	// dump_kernel_bin(program);
+
+	std::cout << "  == Start to copy output from device to host" << std::endl;
+	float output = 0;
+	// Copy output from device to host
+	queue.enqueueReadBuffer(buffer_output, CL_TRUE, 0, sizeof(float) * 1, &output);
+	return output;
 }
 
 std::vector<std::vector<size_t>> run_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel_add, Tensor &kernel)
@@ -178,13 +208,11 @@ int main()
 	// create queue to which we will push commands for the device.
 	cl::CommandQueue queue(context, default_device);
 
-	// run the kernel
-	// cl::KernelFunctor simple_add(cl::Kernel(program, "simple_add"), queue, cl::NullRange, cl::NDRange(10), cl::NullRange);
-	// simple_add(buffer_A, buffer_B, buffer_C);
 
+	std::string kernel_entry = "get_mat_diagonal_max_2";
 	std::cout << "== Create Kernel with program and run." << std::endl;
 	// alternative way to run the kernel
-	cl::Kernel dpp_kernel = cl::Kernel(program, "dpp_kernel");    // Construct kernel 2
+	cl::Kernel dpp_kernel = cl::Kernel(program, kernel_entry);
 
 	auto kernel_name = dpp_kernel.getInfo<CL_KERNEL_FUNCTION_NAME>();
 	std::cout << "== Test get kernel name from cl::Kernel, kernel_name = " << kernel_name << std::endl;
@@ -193,15 +221,19 @@ int main()
 	// ==================
 	std::cout << "== Start to run." << std::endl;
 
-	std::vector<float> kernel_data = {
-        // Batch 0, 4x4 kernel matrix
-        0.8f, 0.3f, 0.1f, 0.2f,  // token 0 row
-        0.3f, 0.9f, 0.4f, 0.1f,  // token 1 row
-        0.1f, 0.4f, 0.7f, 0.5f,  // token 2 row
-        0.2f, 0.1f, 0.5f, 0.6f   // token 3 row
-    };
-	auto kernel = Tensor(1, 4, 4);
-	std::memcpy(kernel.data, kernel_data.data(), kernel.get_byte_size()); 
+	auto kernel = Tensor(1, 1024, 1024);
+	kernel.random_data();
+
+	// mat diagonal max
+	{
+		float ref_max = 0;
+		CMatDiagMax(1024, 1024, kernel.data).get_max_val(ref_max);
+
+		float gpu_max = run_max_mat_diagonal_kernel(queue, context, dpp_kernel, kernel);
+		std::cout << "== ref_max = " << ref_max << ", gpu_max = " << gpu_max << std::endl;
+		std::cout << (ref_max == gpu_max ? "== Success" : "== Fail.") << std::endl;
+		return 0;
+	}
 
 	auto selected_token_ref = run_ref(kernel);
 	print_result(selected_token_ref, "selected_token_ref");

@@ -3,6 +3,7 @@
 #include <string>
 #include <vector>
 #include <iostream>
+#include <random>
 
 /// @brief Configuration structure for CDPruner algorithm
 struct Config
@@ -91,6 +92,16 @@ struct Tensor {
 	size_t get_size() const
 	{
 		return b * m * n;
+	}
+
+	void random_data() {
+		std::random_device rd; 
+		std::mt19937 gen(rd());
+		std::uniform_real_distribution<float> dis(0.0f, 1.0f);
+		for (int i = 0; i < b * m * n; i++)
+		{
+			data[i] = dis(gen);
+		}
 	}
 };
 
