@@ -10,6 +10,7 @@
 #include "kernel_io.hpp"
 #include "dpp_ref.hpp"
 #include "mat_diagonal_max_ref.hpp"
+#include "my_log.hpp"
 
 cl::Device get_gpu_device() {
 	// get all platforms (drivers)
@@ -70,10 +71,15 @@ float run_max_mat_diagonal_kernel(cl::CommandQueue &queue, cl::Context &context,
 	kernel_max.setArg(2, buffer_output);
 	kernel_max.setArg(3, kernel.m);
 
-	queue.enqueueNDRangeKernel(kernel_max, cl::NullRange, cl::NDRange(gws), cl::NDRange(LWS));
-	queue.finish();
+	// auto gws_nd = cl::NDRange(gws);
+	// auto lws_nd = cl::NDRange(LWS);
+	auto gws_nd = cl::NDRange(gws, gws, 1);
+	auto lws_nd = cl::NDRange(LWS, 1, 1);
+	print_nd_range(gws_nd);
+	print_nd_range(lws_nd);
 
-	// dump_kernel_bin(program);
+	queue.enqueueNDRangeKernel(kernel_max, cl::NullRange, gws_nd, lws_nd);
+	queue.finish();
 
 	std::cout << "  == Start to copy output from device to host" << std::endl;
 	float output = 0;
@@ -200,8 +206,11 @@ int main()
 	program.createKernels(&kernels);
 	if (kernels.size() > 0)
 	{
-		auto kernel_name = kernels[0].getInfo<CL_KERNEL_FUNCTION_NAME>();
-		std::cout << "  == Get kernel function name from  = " << kernel_name << std::endl;
+		std::cout << "== Get all kernels in kernel_fn" << std::endl;
+		for (auto cl_kernel : kernels) {
+			auto kernel_name = cl_kernel.getInfo<CL_KERNEL_FUNCTION_NAME>();
+			std::cout << "  == kernel name = " << kernel_name << std::endl;
+		}
 	}
 
 	std::cout << "== Create command queue" << std::endl;
@@ -221,13 +230,14 @@ int main()
 	// ==================
 	std::cout << "== Start to run." << std::endl;
 
-	auto kernel = Tensor(1, 1024, 1024);
+	int m = 1024;
+	auto kernel = Tensor(1, m, m);
 	kernel.random_data();
 
 	// mat diagonal max
 	{
 		float ref_max = 0;
-		CMatDiagMax(1024, 1024, kernel.data).get_max_val(ref_max);
+		CMatDiagMax(kernel.m, kernel.n, kernel.data).get_max_val(ref_max);
 
 		float gpu_max = run_max_mat_diagonal_kernel(queue, context, dpp_kernel, kernel);
 		std::cout << "== ref_max = " << ref_max << ", gpu_max = " << gpu_max << std::endl;

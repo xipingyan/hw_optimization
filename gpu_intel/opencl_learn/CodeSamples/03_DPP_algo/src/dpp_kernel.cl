@@ -31,39 +31,43 @@ __kernel void get_mat_diagonal_max_1(__global const float* matrix, __local float
 // 最终再使用锁，最终结果和每个group内的local_max_array[0]进行比较。
 __kernel void get_mat_diagonal_max_2(__global const float* matrix, __local float* local_max_array, __global float* output, const int size)
 {
-	// Get the work-group ID and the local ID within the work-group.
-    const size_t global_id = get_global_id(0);
-    const size_t local_id = get_local_id(0);
+    // Get work-item and work-group IDs
+    const size_t g_id_0 = get_global_id(0);
+    const size_t l_id_0 = get_local_id(0);
     const size_t group_id = get_group_id(0);
-
-    const size_t global_ws = get_global_size(0);
     const size_t local_ws = get_local_size(0);
 
-    // 将全局数据加载到本地内存
-    if (global_id >= size) {
-        return;
+    // Calculate the diagonal index for this work-item
+    size_t diag_idx = g_id_0;
+
+    // Load a diagonal element into local memory
+    // Only work-items with a valid diagonal index will load data
+    if (diag_idx < size) {
+        local_max_array[l_id_0] = matrix[diag_idx * size + diag_idx];
+    } else {
+        // Handle out-of-bounds work-items by setting a minimum value
+        local_max_array[l_id_0] = -FLT_MAX;
     }
-    // printf("global_id = %zu, local_id = %zu, group_id = %zu, global_ws = %zu, local_ws = %zu\n", global_id, local_id, group_id, global_ws, local_ws);
 
-    uint idx = global_id * size + global_id;
-    local_max_array[local_id] = matrix[idx];
-
-    // 同步，确保所有线程都已加载数据
+    // Synchronize all work-items in the work-group
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // Stage 1: 获取每个subgroup内的最大值
-    for (uint s = local_ws / 2; s > 0; s >>= 1) {
-        if (local_id < s) {
-            local_max_array[local_id] = max(local_max_array[local_id], local_max_array[local_id+s]);
+    // Parallel Reduction using the `__local` memory array
+    // This is a single-threaded loop, but with a parallel reduction inside.
+    for (size_t s = local_ws / 2; s > 0; s >>= 1) {
+        // Only half the work-items participate in each reduction step
+        if (l_id_0 < s) {
+            local_max_array[l_id_0] = max(local_max_array[l_id_0], local_max_array[l_id_0 + s]);
         }
-        // 同步，确保本轮归约完成
+        // Synchronize after each step to ensure data is updated
         barrier(CLK_LOCAL_MEM_FENCE);
     }
-
-    // Stage 3: 和每一个subgroup的第一个变量进行比较。最终输出结果output。
-    if (local_id == 0) {
+    
+    // The work-item with local ID 0 now holds the maximum for the work-group
+    if (l_id_0 == 0) {
+        // Use an atomic operation to find the global maximum
+        // This prevents race conditions when multiple work-groups write to the same output location
         AtomicMax(output, local_max_array[0]);
-        // printf("      local_id = %d, %f, \n", local_id, local_max_array[0]);
     }
 }
 

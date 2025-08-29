@@ -11,7 +11,8 @@
 #include "my_ocl.hpp"
 #include "my_common.hpp"
 
-#define LWS 128
+// #define LWS 128
+#define LWS 256
 float run_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel, std::vector<float> &array_data)
 {
 	float output = 0;
