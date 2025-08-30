@@ -54,32 +54,37 @@ cl::Device get_gpu_device() {
 	return default_device;
 }
 
-float run_max_mat_diagonal_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel_max, Tensor &kernel)
+float run_max_mat_diagonal_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel_max, Tensor &mat)
 {
 	#define LWS 128
-	int gws = (kernel.m + LWS - 1) / LWS * LWS;
+	int gws = (mat.m + LWS - 1) / LWS * LWS;
 	// create buffers on the device
-	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * kernel.get_size());
+	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
 	cl::Buffer buffer_local(context, CL_MEM_READ_WRITE, sizeof(float) * LWS);
 	cl::Buffer buffer_output(context, CL_MEM_READ_WRITE, sizeof(float) * 1);
 
 	// write arrays A and B to the device
-	queue.enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * kernel.get_size(), kernel.data);
+	queue.enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * mat.get_size(), mat.data);
 
 	kernel_max.setArg(0, buffer_mat);
 	kernel_max.setArg(1, buffer_local);
 	kernel_max.setArg(2, buffer_output);
-	kernel_max.setArg(3, kernel.m);
+	kernel_max.setArg(3, mat.m);
 
 	// auto gws_nd = cl::NDRange(gws);
 	// auto lws_nd = cl::NDRange(LWS);
-	auto gws_nd = cl::NDRange(gws, gws, 1);
+	auto gws_nd = cl::NDRange(gws, 1, 1);
 	auto lws_nd = cl::NDRange(LWS, 1, 1);
 	print_nd_range(gws_nd);
 	print_nd_range(lws_nd);
 
-	queue.enqueueNDRangeKernel(kernel_max, cl::NullRange, gws_nd, lws_nd);
-	queue.finish();
+	for (auto i = 0; i < 10; i++) {
+		auto t1 = std::chrono::high_resolution_clock::now();
+		queue.enqueueNDRangeKernel(kernel_max, cl::NullRange, gws_nd, lws_nd);
+		queue.finish();
+		auto t2 = std::chrono::high_resolution_clock::now();
+		std::cout << "Run [" << i << "], tm = " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << std::endl;
+	}
 
 	std::cout << "  == Start to copy output from device to host" << std::endl;
 	float output = 0;
@@ -88,30 +93,66 @@ float run_max_mat_diagonal_kernel(cl::CommandQueue &queue, cl::Context &context,
 	return output;
 }
 
-std::vector<std::vector<size_t>> run_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel_add, Tensor &kernel)
+std::vector<int> run_dpp_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel_dpp, Tensor &mat, int selected_token_num = 0)
 {
-	// // create buffers on the device
-	// cl::Buffer buffer_A(context, CL_MEM_READ_WRITE, sizeof(int) * num);
-	// cl::Buffer buffer_B(context, CL_MEM_READ_WRITE, sizeof(int) * num);
-	// cl::Buffer buffer_C(context, CL_MEM_READ_WRITE, sizeof(int) * num);
+	assert(mat.m == mat.n);
+	float numerical_threshold = 1e-6f;
 
-	// // write arrays A and B to the device
-	// queue.enqueueWriteBuffer(buffer_A, CL_TRUE, 0, sizeof(int) * num, inputs[0].data());
-	// queue.enqueueWriteBuffer(buffer_B, CL_TRUE, 0, sizeof(int) * num, inputs[1].data());
+	size_t total_tokens_num = mat.m;
+	if (selected_token_num == 0) {
+		selected_token_num = static_cast<size_t>(total_tokens_num * 0.6);
+	}
+	std::vector<int> output_ids(selected_token_num, -1);
 
-	// kernel_add.setArg(0, buffer_A);
-	// kernel_add.setArg(1, buffer_B);
-	// kernel_add.setArg(2, buffer_C);
+	#define LWS_1 2
+	int gws_1 = (mat.m + LWS_1 - 1) / LWS_1 * LWS_1;
 
-	// queue.enqueueNDRangeKernel(kernel_add, cl::NullRange, cl::NDRange(num), cl::NullRange);
-	// queue.finish();
+	// create buffers on the device
+	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
+	cl::Buffer buffer_cis(context, CL_MEM_READ_WRITE, sizeof(float) * selected_token_num * total_tokens_num);
+	cl::Buffer buffer_di2s(context, CL_MEM_READ_WRITE, sizeof(float) * total_tokens_num);  // diagonal value.
+	cl::Buffer buffer_output_ids(context, CL_MEM_READ_WRITE, sizeof(int) * selected_token_num);
+	cl::Buffer buffer_local_values(context, CL_MEM_READ_WRITE, sizeof(float) * LWS_1);
+	cl::Buffer buffer_local_ids(context, CL_MEM_READ_WRITE, sizeof(int) * LWS_1);
+	cl::Buffer buffer_best_value(context, CL_MEM_READ_WRITE, sizeof(float));
+	cl::Buffer buffer_best_id(context, CL_MEM_READ_WRITE, sizeof(int));
 
-	// // dump_kernel_bin(program);
+	// write mat to the device
+	queue.enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * mat.get_size(), mat.data);
+	
+	kernel_dpp.setArg(0, buffer_mat);
+	kernel_dpp.setArg(1, buffer_cis);
+	kernel_dpp.setArg(2, buffer_di2s);
+	kernel_dpp.setArg(3, buffer_output_ids);
+	kernel_dpp.setArg(4, mat.b);
+	kernel_dpp.setArg(5, mat.m);
+	kernel_dpp.setArg(6, selected_token_num);
+	kernel_dpp.setArg(7, buffer_local_values);
+	kernel_dpp.setArg(8, buffer_local_ids);
+	kernel_dpp.setArg(9, buffer_best_value);
+	kernel_dpp.setArg(10, buffer_best_id);
+	kernel_dpp.setArg(11, numerical_threshold);
 
-	// std::cout << "  == Start to copy output from device to host" << std::endl;
-	// // Copy output from device to host
-	// queue.enqueueReadBuffer(buffer_C, CL_TRUE, 0, sizeof(int) * num, output.data());
-	return {};
+	std::cout << "  == Params:" << std::endl;
+	std::cout << "     gws_1 = " << gws_1 << std::endl;
+	std::cout << "     LWS_1 = " << LWS_1 << std::endl;
+	std::cout << "     selected_token_num = " << selected_token_num << std::endl;
+	std::cout << "     M = " << mat.m << std::endl;
+
+	queue.enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat.b, gws_1, 1), cl::NDRange(mat.b, LWS_1, 1));
+	queue.finish();
+
+	std::cout << "  == Start to copy output from device to host" << std::endl;
+	// Copy output from device to host
+	queue.enqueueReadBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num, output_ids.data());
+	
+	float best_value = 0;
+	int best_id = -1;
+	queue.enqueueReadBuffer(buffer_best_value, CL_TRUE, 0, sizeof(float), &best_value);
+	queue.enqueueReadBuffer(buffer_best_id, CL_TRUE, 0, sizeof(int), &best_id);
+	std::cout << "  == best_id = " << best_id << ", best_value = " << best_value << std::endl;
+
+	return output_ids;
 }
 
 template <typename T>
@@ -136,11 +177,11 @@ bool is_close(const std::vector<T> &vec1, const std::vector<T> &vec2)
 	return true;
 }
 
-std::vector<std::vector<size_t>> run_ref(Tensor& kernel) {
+std::vector<int> run_ref(Tensor& mat, int selected_token_num = 0) {
 	std::cout << "  == run ref" << std::endl;
 	Config config;
 	// Initialize config for testing
-	config.visual_tokens_retain_percentage = 75;  // Will keep 3 out of 4 tokens
+	config.visual_tokens_retain_percentage = 60;  // Will keep 3 out of 4 tokens
 	config.relevance_weight = 0.5f;
 	config.enable_pruning = true;
 	config.pruning_debug_mode = true;
@@ -151,22 +192,30 @@ std::vector<std::vector<size_t>> run_ref(Tensor& kernel) {
 
 	auto dpp_selector = std::make_unique<FastGreedyDPP>(config);
 
-	int num_tokens_to_keep = 3;
-	auto selected_tokens = dpp_selector->select(kernel, num_tokens_to_keep);
+	if (selected_token_num == 0) {
+		selected_token_num = config.visual_tokens_retain_percentage * mat.m;
+	} 
+	auto selected_tokens = dpp_selector->select(mat, selected_token_num);
 
-	return selected_tokens;
+	std::vector<int> concatenated_vec;
+	for (auto st : selected_tokens) {
+		for (auto s : st) {
+			concatenated_vec.emplace_back(static_cast<int>(s));
+		}
+	}
+	return concatenated_vec;
 }
 
-void print_result(std::vector<std::vector<size_t>> rslts, std::string prefix) {
-	std::cout << "== " << prefix.c_str() << std::endl;
-	for (size_t i = 0; i < rslts.size(); i++) {
-		std::cout << "  [" << i << "]: ";
-		for (size_t j = 0; j < std::min((size_t)8, rslts[i].size()); j++)
-		{
-			std::cout << rslts[i][j] << ", ";
-		}
-		std::cout << std::endl;
-	}
+void print_result(std::vector<int> rslts, std::string prefix) {
+	// std::cout << "== " << prefix.c_str() << std::endl;
+	// for (size_t i = 0; i < rslts.size(); i++) {
+	// 	std::cout << "  [" << i << "]: ";
+	// 	for (size_t j = 0; j < std::min((size_t)8, rslts[i].size()); j++)
+	// 	{
+	// 		std::cout << rslts[i][j] << ", ";
+	// 	}
+	// 	std::cout << std::endl;
+	// }
 }
 
 int main()
@@ -190,7 +239,7 @@ int main()
 		exit(0);
 	}
 
-	std::cout << "== Put kernel string to source." << std::endl;
+	std::cout << "== Put mat string to source." << std::endl;
 	sources.push_back({kernel_code.c_str(), kernel_code.length()});
 
 	std::cout << "== Construct program with source and context." << std::endl;
@@ -219,6 +268,7 @@ int main()
 
 
 	std::string kernel_entry = "get_mat_diagonal_max_2";
+	kernel_entry = "dpp_kernel";
 	std::cout << "== Create Kernel with program and run." << std::endl;
 	// alternative way to run the kernel
 	cl::Kernel dpp_kernel = cl::Kernel(program, kernel_entry);
@@ -231,25 +281,30 @@ int main()
 	std::cout << "== Start to run." << std::endl;
 
 	int m = 1024;
-	auto kernel = Tensor(1, m, m);
-	kernel.random_data();
+	m= 4000;
+	m = 8;
+	auto mat = Tensor(1, m, m);
+	mat.random_data();
 
-	// mat diagonal max
+	int selected_token_num = 1;
+	auto selected_token_ref = run_ref(mat, selected_token_num);
+	print_result(selected_token_ref, "selected_token_ref");
+
+// mat diagonal max
+#if 0
 	{
 		float ref_max = 0;
-		CMatDiagMax(kernel.m, kernel.n, kernel.data).get_max_val(ref_max);
+		CMatDiagMax(mat.m, mat.n, mat.data).get_max_val(ref_max);
 
-		float gpu_max = run_max_mat_diagonal_kernel(queue, context, dpp_kernel, kernel);
+		float gpu_max = run_max_mat_diagonal_kernel(queue, context, dpp_kernel, mat);
 		std::cout << "== ref_max = " << ref_max << ", gpu_max = " << gpu_max << std::endl;
 		std::cout << (ref_max == gpu_max ? "== Success" : "== Fail.") << std::endl;
 		return 0;
 	}
-
-	auto selected_token_ref = run_ref(kernel);
-	print_result(selected_token_ref, "selected_token_ref");
-
-	auto selected_token_gpu = run_kernel(queue, context, dpp_kernel, kernel);
+#else
+	auto selected_token_gpu = run_dpp_kernel(queue, context, dpp_kernel, mat, selected_token_num);
 	print_result(selected_token_gpu, "selected_token_gpu");
+#endif
 
 	std::cout << "== Done." << std::endl;
 	return 0;

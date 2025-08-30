@@ -10,11 +10,11 @@ FastGreedyDPP::FastGreedyDPP(const Config& config) : m_config(config) {
     // Constructor implementation
 }
 
-std::vector<std::vector<size_t>> FastGreedyDPP::select(const Tensor& kernel, size_t num_tokens) {
-    size_t batch_size = kernel.b;
-	size_t total_tokens = kernel.m;
+std::vector<std::vector<size_t>> FastGreedyDPP::select(const Tensor& mat, size_t num_tokens) {
+    size_t batch_size = mat.b;
+	size_t total_tokens = mat.m;
 
-	if (kernel.m != kernel.n)
+	if (mat.m != mat.n)
 	{
 		throw std::invalid_argument("Kernel matrix must be square [B, N, N]");
 	}
@@ -27,14 +27,14 @@ std::vector<std::vector<size_t>> FastGreedyDPP::select(const Tensor& kernel, siz
 
     // Process each batch independently
     for (size_t b = 0; b < batch_size; ++b) {
-        batch_results[b] = select_single_batch(kernel, b, num_tokens);
+        batch_results[b] = select_single_batch(mat, b, num_tokens);
     }
 
     return batch_results;
 }
 
-std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& kernel, size_t batch_idx, size_t num_tokens) {
-    size_t total_tokens = kernel.m;
+std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& mat, size_t batch_idx, size_t num_tokens) {
+    size_t total_tokens = mat.m;
 
     // Initialize working tensors for this batch
     // cis: Orthogonalized vectors [T, N] where T is the number of selected tokens
@@ -43,8 +43,8 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& kernel, siz
     // di2s: Diagonal elements (marginal gains) [N]
     Tensor di2s(total_tokens);
 
-    // Copy diagonal elements from kernel for this batch
-    const float* kernel_data = kernel.data;
+    // Copy diagonal elements from mat for this batch
+    const float* kernel_data = mat.data;
     float* di2s_data = di2s.data;
 
     for (size_t i = 0; i < total_tokens; ++i) {
@@ -60,13 +60,15 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& kernel, siz
 
     // Greedy selection loop - this is the core DPP algorithm
     for (size_t t = 0; t < num_tokens; ++t) {
+        if (m_config.pruning_debug_mode && t < 10)
+            std::cout << "=== Select loop [" << t << "] ===" << std::endl;
         // Find the token with maximum marginal gain
         size_t best_idx = argmax(di2s);
         selected_indices.push_back(best_idx);
 
         // Compute the new orthogonalized vector e_i
-        // eis = (kernel[batch, best_idx] - sum(cis[:t] * cis[:t, best_idx])) / sqrt(di2s[best_idx])
-        update_orthogonal_vector(kernel, batch_idx, best_idx, t, cis, di2s);
+        // eis = (mat[batch, best_idx] - sum(cis[:t] * cis[:t, best_idx])) / sqrt(di2s[best_idx])
+        update_orthogonal_vector(mat, batch_idx, best_idx, t, cis, di2s);
 
         // Update marginal gains by subtracting the squared new orthogonal vector
         // di2s -= square(eis)
@@ -74,15 +76,14 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& kernel, siz
 
         // Debug output: print cis matrix content
         if (m_config.pruning_debug_mode && t < 10) {
-            std::cout << "=== CIS Matrix Content after iteration " << t << " ===" << std::endl;
-            std::cout << "CIS matrix shape: [" << (t+1) << ", " << total_tokens << "]" << std::endl;
+            std::cout << "  CIS matrix shape: [" << (t+1) << ", " << total_tokens << "]" << std::endl;
 
             const float* cis_data_debug = cis.data;
             size_t print_tokens = std::min(total_tokens, static_cast<size_t>(10));
 
             // Print each orthogonal vector (each row of cis) - only first 10 elements
             for (size_t row = 0; row <= t; ++row) {
-                std::cout << "cis[" << row << "] (orthogonal vector for selected token " 
+                std::cout << "  cis[" << row << "] (orthogonal vector for selected token " 
                           << selected_indices[row] << "): [";
 
                 for (size_t col = 0; col < print_tokens; ++col) {
@@ -99,10 +100,10 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& kernel, siz
             std::cout << std::endl;
         }
 
-        // Debug output: print updated conditional kernel matrix after each selection
+        // Debug output: print updated conditional mat matrix after each selection
         if (m_config.pruning_debug_mode && t < 10) {
             // Print current selected indices
-            std::cout << "Selected tokens so far: [";
+            std::cout << "  Selected tokens so far: [";
             for (size_t i = 0; i < selected_indices.size(); ++i) {
                 if (i > 0)
                     std::cout << ", ";
@@ -111,7 +112,7 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& kernel, siz
             std::cout << "]" << std::endl;
 
             // Print current marginal gains (di2s) - limited to first 10 elements
-            std::cout << "Current marginal gains: [";
+            std::cout << "  Current marginal gains: [";
             const float* di2s_data_debug = di2s.data;
             size_t print_gains_size = std::min(total_tokens, static_cast<size_t>(10));
 
@@ -158,17 +159,18 @@ size_t FastGreedyDPP::argmax(const Tensor& scores) {
         }
     }
 
+    printf("  best_id = %ld, best_value = %f\n", best_idx, best_value);
     return best_idx;
 }
 
-void FastGreedyDPP::update_orthogonal_vector(const Tensor& kernel, size_t batch_idx, size_t selected_idx, 
+void FastGreedyDPP::update_orthogonal_vector(const Tensor& mat, size_t batch_idx, size_t selected_idx, 
                                            size_t iteration, Tensor& cis, const Tensor& di2s) {
     // This implements the key DPP orthogonalization step:
-    // eis = (kernel[batch, selected_idx] - sum(cis[:iteration] * cis[:iteration, selected_idx])) / sqrt(di2s[selected_idx])
+    // eis = (mat[batch, selected_idx] - sum(cis[:iteration] * cis[:iteration, selected_idx])) / sqrt(di2s[selected_idx])
 
-    size_t total_tokens = kernel.m;
+    size_t total_tokens = mat.m;
 
-    const float* kernel_data = kernel.data;
+    const float* kernel_data = mat.data;
     const float* di2s_data = di2s.data;
     float* cis_data = cis.data;
 
@@ -177,7 +179,7 @@ void FastGreedyDPP::update_orthogonal_vector(const Tensor& kernel, size_t batch_
 
     // Compute the new orthogonal vector for each token
     for (size_t j = 0; j < total_tokens; ++j) {
-        // Get kernel[batch_idx, selected_idx, j]
+        // Get mat[batch_idx, selected_idx, j]
         size_t kernel_idx = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens + j;
         float kernel_val = kernel_data[kernel_idx];
 
@@ -241,7 +243,7 @@ std::vector<bool> FastGreedyDPP::create_mask(const std::vector<std::vector<size_
     return mask;
 }
 
-float FastGreedyDPP::compute_determinant_approximation(const Tensor& kernel, 
+float FastGreedyDPP::compute_determinant_approximation(const Tensor& mat, 
                                                      const std::vector<size_t>& selected_indices) {
     // This is a simplified approximation for validation purposes
     // In practice, the greedy algorithm approximates the determinant maximization
@@ -250,14 +252,14 @@ float FastGreedyDPP::compute_determinant_approximation(const Tensor& kernel,
         return 0.0f;
     }
 
-    size_t batch_size = kernel.b;
+    size_t batch_size = mat.b;
 
     if (batch_size != 1) {
         throw std::invalid_argument("Determinant approximation only supports single batch");
     }
 
-    const float* kernel_data = kernel.data;
-    size_t total_tokens = kernel.m;
+    const float* kernel_data = mat.data;
+    size_t total_tokens = mat.m;
 
     // Compute the product of diagonal elements of selected tokens as approximation
     float det_approx = 1.0f;

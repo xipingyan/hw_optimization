@@ -1,3 +1,7 @@
+#pragma OPENCL EXTENSION cl_khr_global_int32_base_atomics : enable
+#pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable
+#pragma OPENCL EXTENSION cl_intel_printf : enable
+
 inline void AtomicMax(volatile __global float *source, const float operand) {
     union {
         unsigned int intVal;
@@ -9,14 +13,23 @@ inline void AtomicMax(volatile __global float *source, const float operand) {
     } prevVal;
     do {
         prevVal.floatVal = *source;
-        newVal.floatVal = max(prevVal.floatVal,operand);
+        newVal.floatVal = max(prevVal.floatVal, operand);
     } while (atomic_cmpxchg((volatile __global unsigned int *)source, prevVal.intVal, newVal.intVal) != prevVal.intVal);
 }
 
+inline void AtomicMax_int(volatile __global int *source, const int operand) {
+    int prevVal;
+    int newVal;
+    do {
+        prevVal = *source;
+        newVal = max(prevVal, operand);
+    } while (atomic_cmpxchg((volatile __global int *)source, prevVal, newVal) != prevVal);
+}
+
 // low performance
-__kernel void get_mat_diagonal_max_1(__global const float* matrix, __local float* local_max_array, __global float* diagonal_max, const int size)
+__kernel void get_mat_diagonal_max_1(__global const float* matrix, __local float* local_values, __global float* diagonal_max, const int size)
 {
-	int gid = get_global_id(0);
+	int gid = get_global_id(1) * get_global_size(2) + get_global_id(2);
 	if (gid < size)
 	{
 		// Each work item handles one element on the diagonal.
@@ -26,28 +39,56 @@ __kernel void get_mat_diagonal_max_1(__global const float* matrix, __local float
 	}
 }
 
+
+void AtomicMaxWithID(volatile __global float *maxVal,
+                     volatile __global int *maxID,
+                     const float operand,
+                     const int id) {
+    union {
+        unsigned int intVal;
+        float floatVal;
+    } newVal, prevVal;
+
+    do {
+        prevVal.floatVal = *maxVal;
+        newVal.floatVal = fmax(prevVal.floatVal, operand);
+    } while (atomic_cmpxchg((volatile __global unsigned int *)maxVal,
+                            prevVal.intVal, newVal.intVal) != prevVal.intVal);
+
+    // If we successfully updated the max value, update the ID
+    if (newVal.floatVal > prevVal.floatVal) {
+        *maxID = id;
+    }
+}
+
+
 // Methold 2: 归约(Reduction), 不彻底的reduction
-// local_max_array：每个group内，share同一个地址，把每个group内的max放到local_max_array[0],
-// 最终再使用锁，最终结果和每个group内的local_max_array[0]进行比较。
-__kernel void get_mat_diagonal_max_2(__global const float* matrix, __local float* local_max_array, __global float* output, const int size)
+__kernel void get_mat_diagonal_max_2(__global const float* di2s, 
+                                     __local float* local_values, __local int* local_ids, 
+                                     __global float* best_max_value, __global int* best_max_id,
+                                     const int size)
 {
     // Get work-item and work-group IDs
-    const size_t g_id_0 = get_global_id(0);
-    const size_t l_id_0 = get_local_id(0);
-    const size_t group_id = get_group_id(0);
-    const size_t local_ws = get_local_size(0);
+    uint gid_0 = get_global_id(0);
+    uint gid_1 = get_global_id(1);
+    uint lid_0 = get_local_id(0);
+    uint lid_1 = get_local_id(1);
 
-    // Calculate the diagonal index for this work-item
-    size_t diag_idx = g_id_0;
+    uint group_id = get_group_id(0);
+    uint local_ws = get_local_size(1);
 
     // Load a diagonal element into local memory
     // Only work-items with a valid diagonal index will load data
-    if (diag_idx < size) {
-        local_max_array[l_id_0] = matrix[diag_idx * size + diag_idx];
+    if (gid_1 < size) {
+        local_values[lid_1] = di2s[gid_1];
+        local_ids[lid_1] = gid_1;
     } else {
         // Handle out-of-bounds work-items by setting a minimum value
-        local_max_array[l_id_0] = -FLT_MAX;
+        local_values[lid_1] = -FLT_MAX;
+        local_ids[lid_1] = -1;
     }
+
+    // printf("** gid=%d, lid=%d, value = %f, mat = %f\n", gid_1, lid_1, local_values[lid_1], di2s[gid_1]);
 
     // Synchronize all work-items in the work-group
     barrier(CLK_LOCAL_MEM_FENCE);
@@ -56,23 +97,107 @@ __kernel void get_mat_diagonal_max_2(__global const float* matrix, __local float
     // This is a single-threaded loop, but with a parallel reduction inside.
     for (size_t s = local_ws / 2; s > 0; s >>= 1) {
         // Only half the work-items participate in each reduction step
-        if (l_id_0 < s) {
-            local_max_array[l_id_0] = max(local_max_array[l_id_0], local_max_array[l_id_0 + s]);
+        if (lid_1 < s) {
+            if (local_values[lid_1] < local_values[lid_1 + s]) {
+                local_values[lid_1] = local_values[lid_1 + s];
+                local_ids[lid_1] = local_ids[lid_1 + s];
+            }
         }
         // Synchronize after each step to ensure data is updated
         barrier(CLK_LOCAL_MEM_FENCE);
+        // printf(" ** local_ids[%d]=%d\n", lid_1, local_ids[lid_1]);
     }
     
     // The work-item with local ID 0 now holds the maximum for the work-group
-    if (l_id_0 == 0) {
+    if (lid_1 == 0) {
         // Use an atomic operation to find the global maximum
-        // This prevents race conditions when multiple work-groups write to the same output location
-        AtomicMax(output, local_max_array[0]);
+        // This prevents race conditions when multiple work-groups write to the same best_max_value location
+        // AtomicMax(best_max_value, local_values[0]);
+        // AtomicMax_int(best_max_id, local_ids[0]);
+
+        AtomicMaxWithID(best_max_value, best_max_id, local_values[0], local_ids[0]);
     }
 }
 
-__kernel void dpp_kernel(__global const int *A, __global const int *B, __global int *C)
+void update_orthogonal_vector(__global const float* inp_mat, const int M, const int batch_idx, const int selected_idx, 
+                              int iteration, __global float *cis, __global float * di2s,
+                              const float numerical_threshold) {
+    uint gid_1 = get_global_id(1);
+
+    size_t total_tokens = M;
+    float norm_factor = sqrt(di2s[selected_idx] + numerical_threshold);
+
+    size_t kernel_idx = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens + gid_1;
+    float kernel_val = inp_mat[kernel_idx];
+
+    float projection = 0.0f;
+    for (size_t prev_t = 0; prev_t < iteration; ++prev_t) {
+        size_t cis_selected_idx = prev_t * total_tokens + selected_idx;
+        size_t cis_j_idx = prev_t * total_tokens + gid_1;
+        projection += cis[cis_selected_idx] * cis[cis_j_idx];
+    }
+
+    // Store the orthogonalized vector element
+    size_t cis_current_idx = iteration * total_tokens + gid_1;
+    cis[cis_current_idx] = (kernel_val - projection) / norm_factor;
+    // printf(" cis[%d] = %f\n", cis_current_idx, cis[cis_current_idx]);
+}
+
+void update_marginal_gains(const int iteration, const int M, const int selected_idx, 
+                           __global float* cis_data, __global float* di2s_data) {
+
+    const int total_tokens = M;
+
+    uint j = get_global_id(1);
+
+    // Skip updating if this token is already selected (marked as negative infinity)
+    if (di2s_data[j] == -INFINITY) {
+        return;
+    }
+
+    size_t cis_idx = iteration * total_tokens + j;
+    float eis_j = cis_data[cis_idx];
+
+    // Subtract the squared orthogonal component
+    di2s_data[j] -= eis_j * eis_j;
+}
+
+__kernel void dpp_kernel(__global const float* inp_mat, __global float *cis, __global float *di2s, 
+                         __global int *output_ids, const int batch, const int M, const int selected_num, 
+                         __local float* local_values, __local int* local_ids,
+                         __global float* best_max_value, __global int* best_max_id,
+                         const float numerical_threshold)
 {
-	C[get_global_id(0)] = A[get_global_id(0)] + B[get_global_id(0)];
-	printf(" == kernel inside: golbal_id=%zu \n", get_global_id(0));
+    uint gid_0 = get_global_id(0);
+    uint gid_1 = get_global_id(1);
+    uint gid_2 = get_global_id(2);
+
+    uint lid_0 = get_local_id(0);
+    uint lid_1 = get_local_id(1);
+
+    if (gid_1 < M) {
+        di2s[gid_1] = inp_mat[gid_1 * M + gid_1];
+        barrier(CLK_GLOBAL_MEM_FENCE);
+
+        for (int i = 0; i < selected_num; i++) {
+            // Step 1: Get diagonal max value and id;
+            get_mat_diagonal_max_2(di2s, local_values, local_ids, best_max_value, best_max_id, M);
+            barrier(CLK_GLOBAL_MEM_FENCE);
+            
+            // step 2
+            update_orthogonal_vector(inp_mat, M, gid_0, *best_max_id, i, cis, di2s, numerical_threshold);
+            barrier(CLK_GLOBAL_MEM_FENCE);
+
+            // printf("** cis[0][%d] = %f\n", gid_1, cis[gid_1]);
+
+            // Step 3:
+            update_marginal_gains(i, M, *best_max_id, cis, di2s);
+            barrier(CLK_GLOBAL_MEM_FENCE);
+
+            // Step 4:
+            di2s[*best_max_id] = -INFINITY;
+            barrier(CLK_GLOBAL_MEM_FENCE);
+        }
+        // printf(" ** kernel inside: best_max_id=%d, best_max_value=%f\n", *best_max_id, *best_max_value);
+    }
 }
