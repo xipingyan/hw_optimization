@@ -47,9 +47,12 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& mat, size_t
     const float* kernel_data = mat.data;
     float* di2s_data = di2s.data;
 
-    for (size_t i = 0; i < total_tokens; ++i) {
-        size_t diag_idx = batch_idx * total_tokens * total_tokens + i * total_tokens + i;
-        di2s_data[i] = kernel_data[diag_idx];
+    size_t m_sq = total_tokens * total_tokens;
+    size_t batch_offset = batch_idx * m_sq;
+    for (size_t i = 0, j = 0; i < m_sq; i += total_tokens + 1, j++)
+    {
+        size_t diag_idx = batch_offset + i * total_tokens + i;
+        di2s_data[j] = kernel_data[i];
     }
 
     std::vector<size_t> selected_indices;
