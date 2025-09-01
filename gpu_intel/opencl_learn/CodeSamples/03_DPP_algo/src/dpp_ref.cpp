@@ -159,7 +159,7 @@ size_t FastGreedyDPP::argmax(const Tensor& scores) {
         }
     }
 
-    printf("  best_id = %ld, best_value = %f\n", best_idx, best_value);
+    // printf("  best_id = %ld, best_value = %f\n", best_idx, best_value);
     return best_idx;
 }
 

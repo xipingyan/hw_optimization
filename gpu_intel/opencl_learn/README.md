@@ -51,3 +51,7 @@ kernel.setArg(2, sizeof(int) * lws, nullptr);
 ```
 
 ``Reduction``: 归约算法，需要同步，OpenCL支持一个group内同步，所以归约算法必须在一个group内完成。参考kernel: ``get_array_max_single_group``
+
+```
+barrier(CLK_LOCAL_MEM_FENCE);
+```
