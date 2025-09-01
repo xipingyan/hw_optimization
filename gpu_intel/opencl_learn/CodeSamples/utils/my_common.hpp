@@ -82,7 +82,7 @@ public:
 };
 
 template <typename T>
-inline bool is_close(const std::vector<T> &vec1, const std::vector<T> &vec2)
+inline bool is_close(const std::vector<T> &vec1, const std::vector<T> &vec2, const float& thr = 0.0001f)
 {
 	// 1. Check if the sizes are different
 	if (vec1.size() != vec2.size())
@@ -93,7 +93,7 @@ inline bool is_close(const std::vector<T> &vec1, const std::vector<T> &vec2)
 	// 2. Iterate through elements and compare them
 	for (size_t i = 0; i < vec1.size(); ++i)
 	{
-		if (vec1[i] != vec2[i])
+		if (fabs(vec1[i] - vec2[i]) > thr)
 		{
 			return false; // Found a differing element
 		}
@@ -103,7 +103,25 @@ inline bool is_close(const std::vector<T> &vec1, const std::vector<T> &vec2)
 	return true;
 }
 
-std::vector<float> generate_vec(int sz) {
+template <typename T>
+inline void print_diff(const std::vector<T> &vec1, const std::vector<T> &vec2, const float& thr = 0.0001f)
+{
+	// 2. Iterate through elements and compare them
+	for (size_t i = 0; i < vec1.size(); ++i)
+	{
+		if (fabs(vec1[i] - vec2[i]) > thr)
+		{
+			std::cout << "   vec1[" << i << "] = " << vec1[i] << ", vec2[" << i << "] = " << vec2[i] << ", diff = " << fabs(vec1[i] - vec2[i]) << std::endl;
+		}
+	}
+}
+
+template <typename T>
+inline bool is_same(const std::vector<T> &vec1, const std::vector<T> &vec2) {
+	return is_close<T>(vec1, vec2, 0);
+}
+
+inline std::vector<float> generate_vec(int sz) {
 	// 1. Create a random number generator engine.
     //    `std::mt19937` is a Mersenne Twister engine, which is generally
     //    a good choice for most applications due to its high quality.

@@ -6,53 +6,16 @@
 #include <CL/opencl.hpp>
 #include <stddef.h>
 #include <stdint.h>
+#include <algorithm>
 
 #include "kernel_io.hpp"
 #include "dpp_ref.hpp"
 #include "mat_diagonal_max_ref.hpp"
 #include "my_log.hpp"
+#include "my_common.hpp"
+#include "my_ocl.hpp"
 
-cl::Device get_gpu_device() {
-	// get all platforms (drivers)
-	std::vector<cl::Platform> all_platforms;
-	cl::Platform::get(&all_platforms);
-	if (all_platforms.size() == 0)
-	{
-		std::cout << " No platforms found. Check OpenCL installation!\n";
-		exit(1);
-	}
-
-	size_t selected_platform = -1;
-	for (size_t i = 0; i < all_platforms.size(); i++)
-	{
-		std::string platname = all_platforms[i].getInfo<CL_PLATFORM_NAME>();
-		if (platname.find("Graphics") != std::string::npos)
-		{
-			selected_platform = i;
-			break;
-		}
-	}
-	if (selected_platform == -1)
-	{
-		std::cout << " No GPU platforms is found. Check OpenCL installation!\n";
-		exit(1);
-	}
-
-	cl::Platform default_platform = all_platforms[selected_platform];
-	std::cout << "Using platform: " << default_platform.getInfo<CL_PLATFORM_NAME>() << "\n";
-
-	// get default device of the default platform
-	std::vector<cl::Device> all_devices;
-	default_platform.getDevices(CL_DEVICE_TYPE_GPU, &all_devices);
-	if (all_devices.size() == 0)
-	{
-		std::cout << " No GPU device is found. Check OpenCL installation!\n";
-		exit(1);
-	}
-	cl::Device default_device = all_devices[0];
-
-	return default_device;
-}
+size_t g_max_ws_in_one_group[3] = {0};
 
 float run_max_mat_diagonal_kernel(cl::CommandQueue &queue, cl::Context &context, cl::Kernel kernel_max, Tensor &mat)
 {
@@ -104,21 +67,28 @@ std::vector<int> run_dpp_kernel(cl::CommandQueue &queue, cl::Context &context, c
 	}
 	std::vector<int> output_ids(selected_token_num, -1);
 
-	#define LWS_1 2
-	int gws_1 = (mat.m + LWS_1 - 1) / LWS_1 * LWS_1;
+	// #define LWS_1 2
+	// int lws_1 = LWS_1;
+	// int gws_1 = (mat.m + LWS_1 - 1) / LWS_1 * LWS_1;
+
+	int lws_1 = std::min(mat.m, (int)g_max_ws_in_one_group[1]);
+	int gws_1 = lws_1;
+	lws_1 = 4;
+	gws_1 = 4;
 
 	// create buffers on the device
 	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
 	cl::Buffer buffer_cis(context, CL_MEM_READ_WRITE, sizeof(float) * selected_token_num * total_tokens_num);
 	cl::Buffer buffer_di2s(context, CL_MEM_READ_WRITE, sizeof(float) * total_tokens_num);  // diagonal value.
 	cl::Buffer buffer_output_ids(context, CL_MEM_READ_WRITE, sizeof(int) * selected_token_num);
-	cl::Buffer buffer_local_values(context, CL_MEM_READ_WRITE, sizeof(float) * LWS_1);
-	cl::Buffer buffer_local_ids(context, CL_MEM_READ_WRITE, sizeof(int) * LWS_1);
+	cl::Buffer buffer_local_values(context, CL_MEM_READ_WRITE, sizeof(float) * lws_1);
+	cl::Buffer buffer_local_ids(context, CL_MEM_READ_WRITE, sizeof(int) * lws_1);
 	cl::Buffer buffer_best_value(context, CL_MEM_READ_WRITE, sizeof(float));
 	cl::Buffer buffer_best_id(context, CL_MEM_READ_WRITE, sizeof(int));
 
 	// write mat to the device
 	queue.enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * mat.get_size(), mat.data);
+	queue.enqueueWriteBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num, output_ids.data());
 	
 	kernel_dpp.setArg(0, buffer_mat);
 	kernel_dpp.setArg(1, buffer_cis);
@@ -135,16 +105,17 @@ std::vector<int> run_dpp_kernel(cl::CommandQueue &queue, cl::Context &context, c
 
 	std::cout << "  == Params:" << std::endl;
 	std::cout << "     gws_1 = " << gws_1 << std::endl;
-	std::cout << "     LWS_1 = " << LWS_1 << std::endl;
+	std::cout << "     lws_1 = " << lws_1 << std::endl;
 	std::cout << "     selected_token_num = " << selected_token_num << std::endl;
 	std::cout << "     M = " << mat.m << std::endl;
 
-	queue.enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat.b, gws_1, 1), cl::NDRange(mat.b, LWS_1, 1));
+	queue.enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat.b, gws_1, 1), cl::NDRange(mat.b, lws_1, 1));
 	queue.finish();
 
 	std::cout << "  == Start to copy output from device to host" << std::endl;
 	// Copy output from device to host
 	queue.enqueueReadBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num, output_ids.data());
+	std::sort(output_ids.begin(), output_ids.end());
 	
 	float best_value = 0;
 	int best_id = -1;
@@ -178,13 +149,12 @@ bool is_close(const std::vector<T> &vec1, const std::vector<T> &vec2)
 }
 
 std::vector<int> run_ref(Tensor& mat, int selected_token_num = 0) {
-	std::cout << "  == run ref" << std::endl;
 	Config config;
 	// Initialize config for testing
 	config.visual_tokens_retain_percentage = 60;  // Will keep 3 out of 4 tokens
 	config.relevance_weight = 0.5f;
 	config.enable_pruning = true;
-	config.pruning_debug_mode = true;
+	config.pruning_debug_mode = false;
 	config.use_negative_relevance = false;  // Not using negative correlation as requested
 	config.numerical_threshold = 1e-6f;
 	config.device = "CPU";
@@ -221,6 +191,7 @@ void print_result(std::vector<int> rslts, std::string prefix) {
 int main()
 {
 	std::cout << "== Test DPP algorithm. " << std::endl;
+	get_device_info(g_max_ws_in_one_group);
 
 	auto default_device = get_gpu_device();
 	std::cout << "Using device: " << default_device.getInfo<CL_DEVICE_NAME>() << "\n";
@@ -278,11 +249,10 @@ int main()
 	// auto old_kernel_program = dpp_kernel.getInfo<CL_KERNEL_PROGRAM>();
 
 	// ==================
-	std::cout << "== Start to run." << std::endl;
-
+	std::cout << "== Start to run DPP ref" << std::endl;
 	int m = 1024;
 	m= 4000;
-	m = 8;
+	m = 9;
 	auto mat = Tensor(1, m, m);
 	mat.random_data();
 
@@ -302,8 +272,20 @@ int main()
 		return 0;
 	}
 #else
+	std::cout << "== Start to run DPP GPU kernel." << std::endl;
 	auto selected_token_gpu = run_dpp_kernel(queue, context, dpp_kernel, mat, selected_token_num);
 	print_result(selected_token_gpu, "selected_token_gpu");
+
+	std::cout << "== Ref VS GPU result compare:" << std::endl;
+	if (!is_same<int>(selected_token_ref, selected_token_gpu))
+	{
+		std::cout << "  == Fail, diff as follow:" << std::endl;
+		print_diff<int>(selected_token_ref, selected_token_gpu);
+	}
+	else
+	{
+		std::cout << "  == Success." << std::endl;
+	}
 #endif
 
 	std::cout << "== Done." << std::endl;

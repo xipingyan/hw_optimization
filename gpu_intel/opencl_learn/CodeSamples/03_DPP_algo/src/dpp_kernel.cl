@@ -119,6 +119,58 @@ __kernel void get_mat_diagonal_max_2(__global const float* di2s,
     }
 }
 
+__kernel void find_max_single_group(
+    __global const float* input_array, 
+    __local float* local_max_array,
+    __local int* local_max_ids,
+    __global float* output_max,
+    __global int* output_id,
+    const int array_size
+) {
+    // 获取当前工作项在工作组内的本地 ID
+    const size_t local_id = get_local_id(0);
+    // 获取工作组的大小
+    const size_t local_size = get_local_size(0);
+
+    // 初始化本地最大值为一个极小值
+    float my_local_max = -FLT_MAX;
+    int my_local_id = -1;
+
+    // --- 阶段1：每个工作项处理它负责的数据块 ---
+    // 每个工作项以 local_size 的步长，从全局数组中读取数据
+    for (int i = local_id; i < array_size; i += local_size) {
+        if (input_array[i] > my_local_max) {
+            my_local_max = input_array[i];
+            my_local_id = i;
+        }
+    }
+
+    // 将每个工作项找到的局部最大值写入共享本地内存
+    local_max_array[local_id] = my_local_max;
+    local_max_ids[local_id] = my_local_id;
+
+    // 同步，确保所有工作项都已完成第一阶段的写入
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // --- 阶段2：并行规约在本地内存中找到最终最大值 ---
+    // 这个循环将不断减半，直到 local_max_array[0] 包含最终结果
+    for (size_t s = local_size / 2; s > 0; s >>= 1) {
+        if (local_id < s) {
+            // 将当前位置的值与另一个位置的值进行比较
+            local_max_array[local_id] = max(local_max_array[local_id], local_max_array[local_id + s]);
+        }
+        // 同步，确保本轮比较完成后，数据对所有线程都可见
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    // --- 阶段3：将最终结果写回全局内存 ---
+    // 只有本地 ID 为0 的工作项执行此操作
+    if (local_id == 0) {
+        // 将最终结果写入全局输出数组
+        *output_max = local_max_array[0];
+    }
+}
+
 void update_orthogonal_vector(__global const float* inp_mat, const int M, const int batch_idx, const int selected_idx, 
                               int iteration, __global float *cis, __global float * di2s,
                               const float numerical_threshold) {
@@ -131,6 +183,7 @@ void update_orthogonal_vector(__global const float* inp_mat, const int M, const 
     float kernel_val = inp_mat[kernel_idx];
 
     float projection = 0.0f;
+    // float4
     for (size_t prev_t = 0; prev_t < iteration; ++prev_t) {
         size_t cis_selected_idx = prev_t * total_tokens + selected_idx;
         size_t cis_j_idx = prev_t * total_tokens + gid_1;
@@ -172,18 +225,38 @@ __kernel void dpp_kernel(__global const float* inp_mat, __global float *cis, __g
     uint gid_1 = get_global_id(1);
     uint gid_2 = get_global_id(2);
 
+    uint gs_0 = get_global_size(0);
+    uint gs_1 = get_global_size(1);
+
     uint lid_0 = get_local_id(0);
     uint lid_1 = get_local_id(1);
 
     if (gid_1 < M) {
-        di2s[gid_1] = inp_mat[gid_1 * M + gid_1];
+        for (int i = gid_1; i < M; i += gs_1) {
+            di2s[i] = inp_mat[i * M + i];
+            // printf("** di2s[%d] = %f\n", i, di2s[i]);
+        }
         barrier(CLK_GLOBAL_MEM_FENCE);
 
         for (int i = 0; i < selected_num; i++) {
             // Step 1: Get diagonal max value and id;
-            get_mat_diagonal_max_2(di2s, local_values, local_ids, best_max_value, best_max_id, M);
+            // get_mat_diagonal_max_2(di2s, local_values, local_ids, best_max_value, best_max_id, M);
+            find_max_single_group(di2s, local_values, local_ids, best_max_value, best_max_id, M);
+
+            if (gid_1 == 0) {
+                output_ids[i] = *best_max_id;
+                // printf("  ** kernel inside output_ids[%d] = %d\n", i, output_ids[i]);
+
+               //for (int j = 0; j < selected_num; j++) {
+               //    if (output_ids[j] == -1) {
+               //        output_ids[j] = *best_max_id;
+               //        printf("  ** kernel inside output_ids[%d] = %d\n", j, output_ids[j]);
+               //        break;
+               //    }
+               //}
+            }
             barrier(CLK_GLOBAL_MEM_FENCE);
-            
+
             // step 2
             update_orthogonal_vector(inp_mat, M, gid_0, *best_max_id, i, cis, di2s, numerical_threshold);
             barrier(CLK_GLOBAL_MEM_FENCE);
@@ -192,12 +265,16 @@ __kernel void dpp_kernel(__global const float* inp_mat, __global float *cis, __g
 
             // Step 3:
             update_marginal_gains(i, M, *best_max_id, cis, di2s);
-            barrier(CLK_GLOBAL_MEM_FENCE);
+            barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
 
             // Step 4:
             di2s[*best_max_id] = -INFINITY;
+            printf(" ** kernel inside: i=%d gid=%d, di2s[%d]%f\n", i, gid_1, *best_max_id, di2s[*best_max_id]);
+
+            *best_max_value = -INFINITY;
             barrier(CLK_GLOBAL_MEM_FENCE);
+            // barrier(CLK_GLOBAL_MEM_FENCE | CLK_LOCAL_MEM_FENCE);
         }
-        // printf(" ** kernel inside: best_max_id=%d, best_max_value=%f\n", *best_max_id, *best_max_value);
+        //printf(" ** kernel inside: gid=%d, best_max_id=%d, best_max_value=%f\n", gid_1, *best_max_id, *best_max_value);
     }
 }
