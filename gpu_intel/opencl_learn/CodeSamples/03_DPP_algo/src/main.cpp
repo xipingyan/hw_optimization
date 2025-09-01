@@ -106,8 +106,12 @@ std::vector<int> run_ref(Tensor& mat, int selected_token_num = 0) {
 
 	if (selected_token_num == 0) {
 		selected_token_num = config.visual_tokens_retain_percentage * mat.m;
-	} 
+	}
+
+	auto t1 = std::chrono::high_resolution_clock::now();
 	auto selected_tokens = dpp_selector->select(mat, selected_token_num);
+	auto t2 = std::chrono::high_resolution_clock::now();
+	std::cout << "  == CPU refer time = " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms" << std::endl;
 
 	std::vector<int> concatenated_vec;
 	for (auto st : selected_tokens) {
