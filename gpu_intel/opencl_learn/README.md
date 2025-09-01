@@ -43,3 +43,11 @@ sub_group_size：一个group，也可以分为多有个子的group，kernel中�
     uint sub_group_id = local_id / sub_group_size;
     uint sub_group_lid = local_id % sub_group_size;
 ```
+
+``__local``: local内存，使用时，setargs只要指定内存大小即可，不可使用host内存初始化。当你将一个 cl::Buffer 对象传递给 __local 参数时，OpenCL 驱动程序会将其解释为一个普通的 __global 指针，而不是 __local 内存. <br>
+
+```
+kernel.setArg(2, sizeof(int) * lws, nullptr);
+```
+
+``Reduction``: 归约算法，需要同步，OpenCL支持一个group内同步，所以归约算法必须在一个group内完成。参考kernel: ``get_array_max_single_group``
