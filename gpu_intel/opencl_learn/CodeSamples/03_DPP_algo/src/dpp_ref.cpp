@@ -136,7 +136,7 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& mat, size_t
     }
 
     // Sort the selected indices for deterministic output
-    std::sort(selected_indices.begin(), selected_indices.end());
+    // std::sort(selected_indices.begin(), selected_indices.end());
 
     return selected_indices;
 }

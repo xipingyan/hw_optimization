@@ -66,7 +66,7 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 	std::cout << "     selected_token_num = " << selected_token_num << std::endl;
 	std::cout << "     M = " << mat.m << std::endl;
 
-	for (int l = 0; l < 10; l++)
+	for (int l = 0; l < 1; l++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
 		my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat.b, gws_1, 1), cl::NDRange(mat.b, lws_1, 1));
@@ -130,7 +130,8 @@ int main()
 	// ==================
 	std::cout << "== Generate random test data." << std::endl;
 	int m = 1024;
-	// m= 4000;
+	// m = 40;
+	m= 4000;
 	// m = 9;
 	auto mat = Tensor(1, m, m);
 	mat.random_data();
@@ -139,24 +140,24 @@ int main()
 	
 	std::cout << "== Start to run DPP Reference." << std::endl;
 	std::vector<int> selected_token_ref;
-	// selected_token_ref = run_ref(mat, selected_token_num);
+	selected_token_ref = run_ref(mat, selected_token_num);
 
 	std::cout << "== Start to run DPP GPU kernel." << std::endl;
 	auto selected_token_gpu = run_dpp_kernel(my_ocl, mat, selected_token_num);
 
-	// std::cout << "== Ref VS GPU result compare:" << std::endl;
-	// if (!is_same<int>(selected_token_ref, selected_token_gpu))
-	// {
-	// 	std::cout << "  == Fail, diff as follow:" << std::endl;
-	// 	print_diff<int>(selected_token_ref, selected_token_gpu);
+	std::cout << "== Ref VS GPU result compare:" << std::endl;
+	if (!is_same<int>(selected_token_ref, selected_token_gpu))
+	{
+		std::cout << "  == Fail, diff as follow:" << std::endl;
+		print_diff<int>(selected_token_ref, selected_token_gpu);
 
-	// 	std::cout << "== Failed." << std::endl;
-	// }
-	// else
-	// {
-	// 	std::cout << "  == Success." << std::endl;
-	// 	std::cout << "== Done." << std::endl;
-	// }
+		std::cout << "== Failed." << std::endl;
+	}
+	else
+	{
+		std::cout << "  == Success." << std::endl;
+		std::cout << "== Done." << std::endl;
+	}
 
 	return 0;
 }
