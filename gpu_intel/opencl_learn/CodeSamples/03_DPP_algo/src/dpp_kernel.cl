@@ -79,7 +79,7 @@ __kernel void get_array_max_single_group(
 
     // 初始化本地最大值为一个极小值
     float my_local_max = -FLT_MAX;
-    int my_local_id = -1;
+    int my_local_id = 0;
 
     // --- 阶段1：每个工作项处理它负责的数据块 ---
     // 每个工作项以 local_size 的步长，从全局数组中读取数据
