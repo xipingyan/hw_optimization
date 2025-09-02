@@ -170,9 +170,44 @@ void FastGreedyDPP::update_orthogonal_vector(const Tensor& mat, size_t batch_idx
                                            size_t iteration, Tensor& cis, const Tensor& di2s) {
     // This implements the key DPP orthogonalization step:
     // eis = (mat[batch, selected_idx] - sum(cis[:iteration] * cis[:iteration, selected_idx])) / sqrt(di2s[selected_idx])
-
+#if 1
     size_t total_tokens = mat.m;
 
+    const float *kernel_data = mat.data;
+    const float *di2s_data = di2s.data;
+    float *cis_data = cis.data;
+    // Get the normalization factor
+    float norm_factor = std::sqrt(di2s_data[selected_idx] + m_config.numerical_threshold);
+    float inv_norm = 1.0f / norm_factor;
+
+    size_t base_kernel_offset = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens;
+    const float *kernel_row = kernel_data + base_kernel_offset;
+
+    float *cis_out = cis_data + iteration * total_tokens;
+
+    std::memcpy(cis_out, kernel_row, total_tokens * sizeof(float));
+
+    for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
+    {
+        const float *cis_prev_row = cis_data + prev_t * total_tokens;
+        float cis_sel = cis_prev_row[selected_idx];
+
+        if (std::abs(cis_sel) < 1e-10f)
+            continue;
+
+        for (size_t j = 0; j < total_tokens; ++j)
+        {
+            cis_out[j] -= cis_sel * cis_prev_row[j];
+        }
+    }
+
+    // Process remaining elements
+    for (size_t j = 0; j < total_tokens; ++j)
+    {
+        cis_out[j] *= inv_norm;
+    }
+#else
+    size_t total_tokens = mat.m;
     const float* kernel_data = mat.data;
     const float* di2s_data = di2s.data;
     float* cis_data = cis.data;
@@ -199,6 +234,7 @@ void FastGreedyDPP::update_orthogonal_vector(const Tensor& mat, size_t batch_idx
         size_t cis_current_idx = iteration * total_tokens + j;
         cis_data[cis_current_idx] = (kernel_val - projection) / norm_factor;
     }
+    #endif
 }
 
 void FastGreedyDPP::update_marginal_gains(size_t iteration, size_t selected_idx, 
