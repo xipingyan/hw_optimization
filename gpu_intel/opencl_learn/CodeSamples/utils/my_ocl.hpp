@@ -95,7 +95,7 @@ class CMyTest {
 
 		std::cout << "== Create Kernel with program and run." << std::endl;
 		// alternative way to run the kernel
-		kernel = cl::Kernel(program, kernel_entry);
+		kernel = cl::Kernel(program, kernel_entry.c_str());
 		auto kernel_name = kernel.getInfo<CL_KERNEL_FUNCTION_NAME>();
 		std::cout << "  == Crurrent kernel name = " << kernel_name << std::endl;
 	}
