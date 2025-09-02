@@ -129,26 +129,76 @@ void update_orthogonal_vector(__global const float* inp_mat, const int M, const 
     uint gid_1 = get_global_id(1);
     uint gs_1 = get_global_size(1);
 
+#if 0
+    size_t total_tokens = M;
+
+    float norm_factor = sqrt(di2s[selected_idx] + numerical_threshold);
+    float inv_norm = 1.0f / norm_factor;
+
+    size_t base_kernel_offset = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens;
+
+    // float *cis_out = cis + iteration * total_tokens;
+    size_t cis_offset = iteration * total_tokens;
+
     for (int m_idx = gid_1; m_idx < M; m_idx += gs_1) {
-        size_t total_tokens = M;
-        float norm_factor = sqrt(di2s[selected_idx] + numerical_threshold);
+        cis[cis_offset + m_idx] = inp_mat[base_kernel_offset + m_idx];
+    }
+    
+    barrier(CLK_GLOBAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-        size_t kernel_idx = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens + m_idx;
+    for (int m_idx = gid_1; m_idx < M; m_idx += gs_1) {
+        int prev_t = m_idx;
+        if (prev_t < iteration) {
+            size_t cis_prev_row_offset = prev_t * total_tokens;
+            float cis_sel = cis[cis_prev_row_offset + selected_idx];
+            if (fabs(cis_sel) < 1e-10f) {
+                continue;
+            }
+
+#if 0
+            float4 data_in1 = {cis_sel,cis_sel,cis_sel,cis_sel};
+            for (size_t j = 0; j < total_tokens/4; ++j)
+            {
+                float4 data_in2 = vload4(0, &cis[cis_prev_row_offset + j]);
+                float4 dst = vload4(0, &cis[cis_offset + j]);
+                dst -= data_in1 * data_in2;
+                vstore4(dst, 0, &cis[cis_offset + j]); 
+            }
+#else 
+            for (size_t j = 0; j < total_tokens; ++j) {
+                cis[cis_offset + j] -= cis_sel * cis[cis_prev_row_offset + j];
+            }
+#endif
+        }
+    }
+    barrier(CLK_GLOBAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+    for (int m_idx = gid_1; m_idx < M; m_idx += gs_1)
+    {
+        cis[cis_offset + m_idx] *= inv_norm;
+    }
+#else
+    size_t total_tokens = M;
+    float norm_factor = sqrt(di2s[selected_idx] + numerical_threshold);
+    size_t m_offset = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens;
+    for (int m_idx = gid_1; m_idx < M; m_idx += gs_1) {
+       
+        size_t kernel_idx = m_offset + m_idx;
         float kernel_val = inp_mat[kernel_idx];
-
+    
         float projection = 0.0f;
-        // float4
         for (size_t prev_t = 0; prev_t < iteration; ++prev_t) {
-            size_t cis_selected_idx = prev_t * total_tokens + selected_idx;
-            size_t cis_j_idx = prev_t * total_tokens + m_idx;
+            size_t tmp_offset = prev_t * total_tokens;
+            size_t cis_selected_idx = tmp_offset + selected_idx;
+            size_t cis_j_idx = tmp_offset + m_idx;
             projection += cis[cis_selected_idx] * cis[cis_j_idx];
         }
-
+    
         // Store the orthogonalized vector element
         size_t cis_current_idx = iteration * total_tokens + m_idx;
         cis[cis_current_idx] = (kernel_val - projection) / norm_factor;
-        // printf(" cis[%d] = %f\n", cis_current_idx, cis[cis_current_idx]);
     }
+#endif
 }
 
 void update_marginal_gains(const int iteration, const int selected_num, const int selected_idx, 
