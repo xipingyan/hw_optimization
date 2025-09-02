@@ -51,7 +51,7 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 	kernel_dpp.setArg(1, buffer_cis);
 	kernel_dpp.setArg(2, buffer_di2s);
 	kernel_dpp.setArg(3, buffer_output_ids);
-	kernel_dpp.setArg(4, mat.b);
+	kernel_dpp.setArg(4, mat._b);
 	kernel_dpp.setArg(5, mat.m);
 	kernel_dpp.setArg(6, selected_token_num);
 	kernel_dpp.setArg(7, sizeof(float) * lws_1, nullptr);
@@ -69,7 +69,7 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 	for (int l = 0; l < 3; l++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
-		my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat.b, gws_1, 1), cl::NDRange(mat.b, lws_1, 1));
+		my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat._b, gws_1, 1), cl::NDRange(mat._b, lws_1, 1));
 		my_olc.get_queue()->finish();
 		auto t2 = std::chrono::high_resolution_clock::now();
 		std::cout << "  == tm = " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms" << std::endl;

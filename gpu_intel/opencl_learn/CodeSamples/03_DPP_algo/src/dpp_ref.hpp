@@ -58,18 +58,18 @@ struct Config
 
 struct Tensor {
 	float* data = nullptr;
-	int b = 0;
+	int _b = 0;
 	int m = 0;
 	int n = 0;
 	Tensor(int s1, int s2, int s3)
 	{
-		b = s1;
+		_b = s1;
 		m = s2;
 		n = s3;
-		data = (float *)malloc(b * m * n * sizeof(float));
+		data = (float *)malloc(_b * m * n * sizeof(float));
 		if (nullptr == data)
 		{
-			std::cout << "Error: cant't malloc size[" << b * m * n << "]." << std::endl;
+			std::cout << "Error: cant't malloc size[" << _b * m * n << "]." << std::endl;
 			return;
 		}
 	}
@@ -82,26 +82,53 @@ struct Tensor {
 		{
 			free(data);
 			data = nullptr;
-			b = m = n = 0;
+			_b = m = n = 0;
 		}
 	}
 
 	size_t get_byte_size() {
-		return b * m * n * sizeof(float);
+		return _b * m * n * sizeof(float);
 	}
 	size_t get_size() const
 	{
-		return b * m * n;
+		return _b * m * n;
 	}
 
 	void random_data() {
+#if 1
 		std::random_device rd; 
 		std::mt19937 gen(rd());
 		std::uniform_real_distribution<float> dis(0.0f, 1.0f);
-		for (int i = 0; i < b * m * n; i++)
+		// FILE *pf = fopen("input_mat.bin", "wb");
+		for (int i = 0; i < _b * m * n; i++)
 		{
 			data[i] = dis(gen);
+			// fwrite(&data[i], sizeof(float), 1, pf);
 		}
+		// fclose(pf);
+#else
+		for (size_t b = 0; b < _b; ++b)
+		{
+			for (size_t i = 0; i < m; ++i)
+			{
+				for (size_t j = 0; j < n; ++j)
+				{
+					size_t idx = b * m * m + i * m + j;
+					if (i == j)
+					{
+						// Diagonal elements (higher for more important tokens)
+						data[idx] = 1.0f + static_cast<float>(i) * 0.1f;
+					}
+					else
+					{
+						// Off-diagonal elements (similarity between tokens)
+						float similarity = 0.5f * std::exp(-std::abs(static_cast<float>(i) - static_cast<float>(j)) / 2.0f);
+						data[idx] = similarity;
+					}
+				}
+			}
+		}
+#endif
 	}
 };
 

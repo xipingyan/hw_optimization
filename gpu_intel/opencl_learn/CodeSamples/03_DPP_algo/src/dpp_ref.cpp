@@ -11,7 +11,7 @@ FastGreedyDPP::FastGreedyDPP(const Config& config) : m_config(config) {
 }
 
 std::vector<std::vector<size_t>> FastGreedyDPP::select(const Tensor& mat, size_t num_tokens) {
-    size_t batch_size = mat.b;
+    size_t batch_size = mat._b;
 	size_t total_tokens = mat.m;
 
 	if (mat.m != mat.n)
@@ -291,7 +291,7 @@ float FastGreedyDPP::compute_determinant_approximation(const Tensor& mat,
         return 0.0f;
     }
 
-    size_t batch_size = mat.b;
+    size_t batch_size = mat._b;
 
     if (batch_size != 1) {
         throw std::invalid_argument("Determinant approximation only supports single batch");
