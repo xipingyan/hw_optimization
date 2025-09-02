@@ -126,8 +126,8 @@ __kernel void get_array_max_single_group(
 void update_orthogonal_vector(__global const float* inp_mat, const int M, const int batch_idx, const int selected_idx, 
                               int iteration, __global float *cis, __global float * di2s,
                               const float numerical_threshold) {
-    uint gid_1 = get_global_id(1);
-    uint gs_1 = get_global_size(1);
+    uint lid_1 = get_local_id(1);
+    uint ls_1 = get_local_size(1);
 
 #if 0
     size_t total_tokens = M;
@@ -140,40 +140,28 @@ void update_orthogonal_vector(__global const float* inp_mat, const int M, const 
     // float *cis_out = cis + iteration * total_tokens;
     size_t cis_offset = iteration * total_tokens;
 
-    for (int m_idx = gid_1; m_idx < M; m_idx += gs_1) {
+    for (int m_idx = lid_1; m_idx < M; m_idx += ls_1) {
         cis[cis_offset + m_idx] = inp_mat[base_kernel_offset + m_idx];
     }
     
     barrier(CLK_GLOBAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    for (int m_idx = gid_1; m_idx < M; m_idx += gs_1) {
-        int prev_t = m_idx;
-        if (prev_t < iteration) {
+    for (int m_idx = lid_1; m_idx < M; m_idx += ls_1) {
+        size_t j = m_idx;
+
+        for (size_t prev_t = 0; prev_t < iteration; ++prev_t) {
             size_t cis_prev_row_offset = prev_t * total_tokens;
             float cis_sel = cis[cis_prev_row_offset + selected_idx];
             if (fabs(cis_sel) < 1e-10f) {
                 continue;
             }
 
-#if 0
-            float4 data_in1 = {cis_sel,cis_sel,cis_sel,cis_sel};
-            for (size_t j = 0; j < total_tokens/4; ++j)
-            {
-                float4 data_in2 = vload4(0, &cis[cis_prev_row_offset + j]);
-                float4 dst = vload4(0, &cis[cis_offset + j]);
-                dst -= data_in1 * data_in2;
-                vstore4(dst, 0, &cis[cis_offset + j]); 
-            }
-#else 
-            for (size_t j = 0; j < total_tokens; ++j) {
-                cis[cis_offset + j] -= cis_sel * cis[cis_prev_row_offset + j];
-            }
-#endif
+            cis[cis_offset + j] -= cis_sel * cis[cis_prev_row_offset + j];
         }
     }
     barrier(CLK_GLOBAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
 
-    for (int m_idx = gid_1; m_idx < M; m_idx += gs_1)
+    for (int m_idx = lid_1; m_idx < M; m_idx += ls_1)
     {
         cis[cis_offset + m_idx] *= inv_norm;
     }
@@ -181,43 +169,47 @@ void update_orthogonal_vector(__global const float* inp_mat, const int M, const 
     size_t total_tokens = M;
     float norm_factor = sqrt(di2s[selected_idx] + numerical_threshold);
     size_t m_offset = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens;
-    for (int m_idx = gid_1; m_idx < M; m_idx += gs_1) {
-       
-        size_t kernel_idx = m_offset + m_idx;
-        float kernel_val = inp_mat[kernel_idx];
+    size_t iter_loop = iteration * total_tokens;
+    for (int m_idx = lid_1; m_idx < M; m_idx += ls_1) {
+        float kernel_val = inp_mat[m_offset + m_idx];
     
         float projection = 0.0f;
-        for (size_t prev_t = 0; prev_t < iteration; ++prev_t) {
+        #if 1
+        for (size_t prev_t = 0; prev_t < iter_loop; prev_t+= total_tokens) {
+            projection += cis[prev_t + selected_idx] * cis[prev_t + m_idx];
+        }
+        #else
+        for (size_t prev_t = 0; prev_t < iteration; prev_t++) {
             size_t tmp_offset = prev_t * total_tokens;
             size_t cis_selected_idx = tmp_offset + selected_idx;
             size_t cis_j_idx = tmp_offset + m_idx;
             projection += cis[cis_selected_idx] * cis[cis_j_idx];
         }
+        #endif
     
         // Store the orthogonalized vector element
-        size_t cis_current_idx = iteration * total_tokens + m_idx;
-        cis[cis_current_idx] = (kernel_val - projection) / norm_factor;
+        cis[iter_loop + m_idx] = (kernel_val - projection) / norm_factor;
     }
 #endif
 }
 
 void update_marginal_gains(const int iteration, const int selected_num, const int selected_idx, 
                            __global float* cis_data, __global float* di2s_data) {
-    uint gid_1 = get_global_id(1);
-    uint gs_1 = get_global_size(1);
+    uint lid_1 = get_local_id(1);
+    uint ls_1 = get_local_size(1);
 
-    for (int m_idx = gid_1; m_idx < selected_num; m_idx += gs_1) {
+    size_t iter_select_num = iteration * selected_num;
+    for (int m_idx = lid_1; m_idx < selected_num; m_idx += ls_1) {
         // Skip updating if this token is already selected (marked as negative infinity)
         if (di2s_data[m_idx] == -INFINITY) {
             return;
         }
 
-        size_t cis_idx = iteration * selected_num + m_idx;
+        size_t cis_idx = iter_select_num + m_idx;
         float eis_j = cis_data[cis_idx];
 
         // Subtract the squared orthogonal component
         di2s_data[m_idx] -= eis_j * eis_j;
-        
         // printf("  *** di2s_data[%d] = %f, eis_j = %f, cis_idx = %d\n", m_idx, di2s_data[m_idx], eis_j, cis_idx);
     }
 }
@@ -254,7 +246,6 @@ __kernel void dpp_kernel(__global const float* inp_mat, __global float *cis, __g
 
             if (gid_1 == 0) {
                 // printf("** loop[%d] best_max_value=%f, best_max_id=%d\n", i, *best_max_value, *best_max_id);
-
                 output_ids[i] = *best_max_id;
                 // printf("  ** kernel inside output_ids[%d] = %d\n", i, output_ids[i]);
             }
@@ -263,10 +254,6 @@ __kernel void dpp_kernel(__global const float* inp_mat, __global float *cis, __g
             // step 2
             update_orthogonal_vector(inp_mat, M, gid_0, *best_max_id, i, cis, di2s, numerical_threshold);
             barrier(CLK_GLOBAL_MEM_FENCE);
-
-            for (int m_idx = gid_1; m_idx < M; m_idx += gs_1) {
-                // printf("** cis[%d][%d]=%f\n", i, m_idx, cis[i*M + m_idx]);
-            }
 
             // Step 3:
             update_marginal_gains(i, selected_num, *best_max_id, cis, di2s);

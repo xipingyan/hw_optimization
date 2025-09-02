@@ -66,7 +66,7 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 	std::cout << "     selected_token_num = " << selected_token_num << std::endl;
 	std::cout << "     M = " << mat.m << std::endl;
 
-	for (int l = 0; l < 1; l++)
+	for (int l = 0; l < 3; l++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
 		my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat.b, gws_1, 1), cl::NDRange(mat.b, lws_1, 1));
@@ -133,13 +133,13 @@ int main()
 
 	// ==================
 	std::cout << "== Generate random test data." << std::endl;
-	int m = 1024;
+	int m = 2048;
 	// m = 40;
 	m= 4000;
 	// m = 9;
 	auto mat = Tensor(1, m, m);
 	mat.random_data();
-	int selected_token_num = m * 0.6;
+	int selected_token_num = m * 0.5;
 	// selected_token_num = 2;
 	
 	std::cout << "== Start to run DPP Reference." << std::endl;
