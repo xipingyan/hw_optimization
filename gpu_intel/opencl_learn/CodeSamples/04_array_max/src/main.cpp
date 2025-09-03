@@ -13,6 +13,7 @@
 #include "my_common.hpp"
 
 static size_t g_max_ws_in_one_group[3];
+static cl_uint g_max_compute_units = 0;
 
 // #define LWS 128
 #define LWS 256
@@ -209,7 +210,7 @@ void test_array_max_single_group() {
 
 int main()
 {
-	get_device_info(g_max_ws_in_one_group);
+	get_device_info(g_max_ws_in_one_group, g_max_compute_units);
 
 	std::cout << "== Test array max algorithm. " << std::endl;
 	// test_array_max_all_group(); // 如果数据> max group size(1024), 结果就有可能是错误的。所以规约算法只能在一个group内完成。

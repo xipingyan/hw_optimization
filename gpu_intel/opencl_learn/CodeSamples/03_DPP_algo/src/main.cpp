@@ -16,6 +16,7 @@
 #include "my_ocl.hpp"
 
 static size_t g_max_ws_in_one_group[3] = {0};
+static cl_uint g_max_compute_units = 0;
 
 std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token_num = 0)
 {
@@ -125,7 +126,7 @@ std::vector<int> run_ref(Tensor& mat, int selected_token_num = 0) {
 int main()
 {
 	std::cout << "== Test DPP algorithm. " << std::endl;
-	get_device_info(g_max_ws_in_one_group);
+	get_device_info(g_max_ws_in_one_group, g_max_compute_units);
 
 	std::string kernel_fn = "../03_DPP_algo/src/dpp_kernel.cl";
 	std::string kernel_entry = "dpp_kernel";

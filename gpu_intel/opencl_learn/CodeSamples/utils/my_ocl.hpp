@@ -2,6 +2,32 @@
 #include <CL/opencl.hpp>
 #include <iostream>
 
+struct MyDevInfo
+{
+	size_t device_max_compute_unit = 0;					 // CL_DEVICE_MAX_COMPUTE_UNITS
+	size_t device_max_group_size = 0;					 // lws不能超过这个值，CL_DEVICE_MAX_WORK_GROUP_SIZE
+	size_t device_max_work_item_size[3];				 // CL_DEVICE_MAX_WORK_ITEM_SIZES
+};
+
+// lws 比较喜欢这个值的倍数。 CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE
+inline size_t get_kernel_perferred_workgroup_size_multiple(cl::Kernel kernel, cl::Device device) {
+	size_t kernel_perferred_workgroup_size_multiple = 0;
+	auto err = clGetKernelWorkGroupInfo(
+		kernel.get(),
+		device.get(),
+		CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE,
+		sizeof(size_t),
+		&kernel_perferred_workgroup_size_multiple,
+		NULL);
+	if (err == CL_SUCCESS) {
+		// std::cout << "  Kernel preferred work group size multiple: " << kernel_perferred_workgroup_size_multiple << std::endl;
+	}
+	else {
+		std::cout << "  Error: get CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE, err = " << err << std::endl;
+	}
+	return kernel_perferred_workgroup_size_multiple;
+}
+
 inline cl::Device get_gpu_device()
 {
 	// get all platforms (drivers)
@@ -106,23 +132,28 @@ public:
 	std::shared_ptr<cl::CommandQueue> get_queue() { return queue; }
 	cl::Context get_context() { return context; }
 	cl::Kernel get_kernel() { return kernel; }
+	cl::Device get_device() { return default_device; }
 
 private:
 };
 
-inline void get_device_info(size_t max_ws_in_one_group[3])
+inline MyDevInfo get_device_info(size_t max_ws_in_one_group[3], cl_uint& max_compute_units)
 {
+	MyDevInfo dev_info;
+
 	cl_platform_id platform;
 	cl_device_id device;
 	cl_uint num_devices;
 	cl_int err;
+
+	std::cerr << "== Getting device info." << std::endl;
 
 	// 获取平台和设备
 	err = clGetPlatformIDs(1, &platform, NULL);
 	err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, &num_devices);
 	if (err != CL_SUCCESS)
 	{
-		std::cerr << "Error: getting device info." << std::endl;
+		std::cerr << "  Error: getting device info." << std::endl;
 		max_ws_in_one_group[0] = max_ws_in_one_group[1] = max_ws_in_one_group[2] = 1024;
 		// return;
 		exit(0);
@@ -139,6 +170,7 @@ inline void get_device_info(size_t max_ws_in_one_group[3])
 	if (err == CL_SUCCESS)
 	{
 		std::cout << "  Max work-items per group: " << max_work_group_size << std::endl;
+		dev_info.device_max_group_size = max_work_group_size;
 	}
 
 	// 2. 查询每个维度的最大工作项数量
@@ -152,9 +184,24 @@ inline void get_device_info(size_t max_ws_in_one_group[3])
 	if (err == CL_SUCCESS)
 	{
 		std::memcpy(max_ws_in_one_group, max_work_item_sizes, 3 * sizeof(size_t));
+		std::memcpy(dev_info.device_max_work_item_size, max_work_item_sizes, 3 * sizeof(size_t));
 		std::cout << "  Max work-items in each dimension: "
-				  << max_ws_in_one_group[0] << " (x), "
-				  << max_ws_in_one_group[1] << " (y), "
-				  << max_ws_in_one_group[2] << " (z)" << std::endl;
+				  << dev_info.device_max_work_item_size[0] << " (x), "
+				  << dev_info.device_max_work_item_size[1] << " (y), "
+				  << dev_info.device_max_work_item_size[2] << " (z)" << std::endl;
 	}
+
+	err = clGetDeviceInfo(
+		device,
+		CL_DEVICE_MAX_COMPUTE_UNITS,
+		sizeof(max_compute_units),
+		&max_compute_units,
+		NULL);
+	if (err == CL_SUCCESS)
+	{
+		std::cout << "  Max max supported EU(compute unit) number: " << max_compute_units << std::endl;
+		dev_info.device_max_compute_unit = max_compute_units;
+	}
+
+	return dev_info;
 }

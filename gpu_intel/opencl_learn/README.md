@@ -26,9 +26,13 @@ OpenCL is warperred into oneAPI.
 
 # OCL 概念
 
-gws：对应所有的元素
-lws：对应一个group的所有元素
-group： 例如gws=128， lws=64，group数目为gws/lws=2, 必须为整数倍, 这个数字也可成为group size。
+CL_DEVICE_MAX_WORK_GROUP_SIZE：代表一个group，最大能启动的work item数目，也就是lws，不能超过这个值。  <br>
+CL_DEVICE_MAX_COMPUTE_UNITS: 代表硬件EU的数目，一个group，只能同时执行在一个EU上。  <br>
+CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE： 代表一个group中的work item数目，比较时它的倍数时，效率最高，但最大不能超过CL_DEVICE_MAX_WORK_GROUP_SIZE。  <br>
+
+gws：对应所有的元素, 推荐设置成 CL_DEVICE_MAX_COMPUTE_UNITS * lws的倍数，来充分利用所有的EU。 <br>
+lws：对应一个group的所有元素; <br>
+group： 例如gws=128， lws=64，group数目为gws/lws=2, 必须为整数倍, 这个数字也可成为group size。一个group同时只能执行在一个EU上。 <br>
 sub_group_size：一个group，也可以分为多有个子的group，kernel中，可以调用''get_sub_group_size();''
 
 ```
@@ -55,3 +59,4 @@ kernel.setArg(2, sizeof(int) * lws, nullptr);
 ```
 barrier(CLK_LOCAL_MEM_FENCE);
 ```
+

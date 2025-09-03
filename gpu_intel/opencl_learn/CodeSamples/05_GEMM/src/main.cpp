@@ -15,6 +15,7 @@
 #include "gemm_ref.hpp"
 
 static size_t g_max_ws_in_one_group[3] = {0};
+static cl_uint g_max_compute_units = 0;
 static bool g_enable_fp16 = false;
 
 // float/fp16
@@ -90,7 +91,7 @@ std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std
 int main()
 {
 	std::cout << "== Test DPP algorithm. " << std::endl;
-	get_device_info(g_max_ws_in_one_group);
+	get_device_info(g_max_ws_in_one_group, g_max_compute_units);
 
 	std::cout << "== Generate random test data." << std::endl;
 	int m = 1, k = 2048, n = 2048;
@@ -108,13 +109,15 @@ int main()
 
 	std::string kernel_fn = "../05_GEMM/src/gemm_kernel.cl";
 	std::string kernel_entry = "gemm_optimized";
-	kernel_entry = "gemm_ref";
+	// kernel_entry = "gemm_ref";
 	if (g_enable_fp16)
 		kernel_entry = kernel_entry + "_half";
 	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
 
 	// ==================
 	std::cout << "  g_enable_fp16 = " << g_enable_fp16 << std::endl;
+	auto kernel_perferred_workgroup_size_multiple = get_kernel_perferred_workgroup_size_multiple(my_ocl.get_kernel(), my_ocl.get_device());
+	std::cout << "  kernel_perferred_workgroup_size_multiple = " << kernel_perferred_workgroup_size_multiple << std::endl;
 
 	auto gemm_ref = CGEMM_Ref::createPtr(m, n, k);
 
