@@ -37,11 +37,11 @@ class CGEMM_Ref
 			_input[i] = dis(gen) / 10.0f;
 			_input_half[i] = floatToHalf(_input[i]);
 
-			if (i == 0) {
-				std::cout << "_input[i] = " << _input[i] << std::endl;
-				std::cout << "_input_half[i] = " << _input_half[i] << std::endl;
-				std::cout << "halfToFloat(_input_half[i]) = " << halfToFloat(_input_half[i]) << std::endl;
-			}
+			// if (i == 0) {
+			// 	std::cout << "_input[i] = " << _input[i] << std::endl;
+			// 	std::cout << "_input_half[i] = " << _input_half[i] << std::endl;
+			// 	std::cout << "halfToFloat(_input_half[i]) = " << halfToFloat(_input_half[i]) << std::endl;
+			// }
 		}
 		_weight = new float[_k * _n];
 		_weight_half = new half[_k * _n];
