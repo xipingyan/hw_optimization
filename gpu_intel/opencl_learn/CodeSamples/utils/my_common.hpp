@@ -147,3 +147,33 @@ inline size_t tm_diff_ms(std::chrono::time_point<std::chrono::high_resolution_cl
 {
 	return std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
 }
+
+inline std::string get_env_str(std::string str_env)
+{
+	if (std::getenv(str_env.c_str()))
+	{
+		return std::string(std::getenv(str_env.c_str()));
+	}
+	return std::string();
+}
+
+inline bool get_env_bool(std::string str_env)
+{
+	if (std::getenv(str_env.c_str()))
+	{
+		return std::string(std::getenv(str_env.c_str())) == std::string("1") ||
+			   std::string(std::getenv(str_env.c_str())) == std::string("true") ||
+			   std::string(std::getenv(str_env.c_str())) == std::string("True") ||
+			   std::string(std::getenv(str_env.c_str())) == std::string("TRUE");
+	}
+	return false;
+}
+
+inline int get_env_int(std::string str_env)
+{
+	if (std::getenv(str_env.c_str()))
+	{
+		return std::atoi(std::getenv(str_env.c_str()));
+	}
+	return -1;
+}

@@ -15,14 +15,17 @@
 #include "gemm_ref.hpp"
 
 static size_t g_max_ws_in_one_group[3] = {0};
+static bool g_enable_fp16 = false;
 
-std::vector<float> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std::string kernel_entry)
+// float/fp16
+template<typename T>
+std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std::string kernel_entry)
 {
 	auto M = gemm_ref_ptr->get_m();
 	auto N = gemm_ref_ptr->get_n();
 	auto K = gemm_ref_ptr->get_k();
 
-	std::vector<float> output(M * N, 0);
+	std::vector<T> output(M * N, 0);
 
 	// Default reference.
 	auto lws = cl::NDRange(1);
@@ -36,13 +39,13 @@ std::vector<float> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr,
 
 	// create buffers on the device
 	auto context = my_olc.get_context();
-	cl::Buffer buffer_intput(context, CL_MEM_READ_ONLY, sizeof(float) * M * K);
-	cl::Buffer buffer_weight(context, CL_MEM_READ_ONLY, sizeof(float) * K * N);
-	cl::Buffer buffer_output(context, CL_MEM_READ_WRITE, sizeof(float) * M * N);
+	cl::Buffer buffer_intput(context, CL_MEM_READ_ONLY, sizeof(T) * M * K);
+	cl::Buffer buffer_weight(context, CL_MEM_READ_ONLY, sizeof(T) * K * N);
+	cl::Buffer buffer_output(context, CL_MEM_READ_WRITE, sizeof(T) * M * N);
 
 	// write mat to the device
-	my_olc.get_queue()->enqueueWriteBuffer(buffer_intput, CL_TRUE, 0, sizeof(float) * M * K, gemm_ref_ptr->get_input());
-	my_olc.get_queue()->enqueueWriteBuffer(buffer_weight, CL_TRUE, 0, sizeof(float) * K * N, gemm_ref_ptr->get_weight());
+	my_olc.get_queue()->enqueueWriteBuffer(buffer_intput, CL_TRUE, 0, sizeof(T) * M * K, gemm_ref_ptr->get_input<T>());
+	my_olc.get_queue()->enqueueWriteBuffer(buffer_weight, CL_TRUE, 0, sizeof(T) * K * N, gemm_ref_ptr->get_weight<T>());
 
 	auto kernel_dpp = my_olc.get_kernel();
 	kernel_dpp.setArg(0, buffer_intput);
@@ -78,7 +81,7 @@ std::vector<float> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr,
 
 	std::cout << "  == Start to copy output from device to host" << std::endl;
 	// Copy output from device to host
-	my_olc.get_queue()->enqueueReadBuffer(buffer_output, CL_TRUE, 0, sizeof(float) * M * N, output.data());
+	my_olc.get_queue()->enqueueReadBuffer(buffer_output, CL_TRUE, 0, sizeof(T) * M * N, output.data());
 	std::cout << "      Copy from device to host finish. size = " << output.size() << std::endl;
 
 	return output;
@@ -89,23 +92,44 @@ int main()
 	std::cout << "== Test DPP algorithm. " << std::endl;
 	get_device_info(g_max_ws_in_one_group);
 
-	std::string kernel_fn = "../05_GEMM/src/gemm_kernel.cl";
-	std::string kernel_entry = "gemm_optimized";
-	kernel_entry = "gemm_ref";
-	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
-
-	// ==================
 	std::cout << "== Generate random test data." << std::endl;
 	int m = 1, k = 2048, n = 2048;
 	m = 3, k = 3584, n = 3584;
 
+	if (get_env_bool("ENABLE_HALF"))
+		g_enable_fp16 = true;
+	if (get_env_int("M") > 0)
+		m = get_env_int("M");
+	if (get_env_int("N") > 0)
+		n = get_env_int("N");
+	if (get_env_int("K") > 0)
+		k = get_env_int("K");
+
+
+	std::string kernel_fn = "../05_GEMM/src/gemm_kernel.cl";
+	std::string kernel_entry = "gemm_optimized";
+	kernel_entry = "gemm_ref";
+	if (g_enable_fp16)
+		kernel_entry = kernel_entry + "_half";
+	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
+
+	// ==================
+	std::cout << "  g_enable_fp16 = " << g_enable_fp16 << std::endl;
+
 	auto gemm_ref = CGEMM_Ref::createPtr(m, n, k);
 
 	std::cout << "== Start to run GPU kernel : " << kernel_entry << std::endl;
-	auto outputs_gpu = run_gemm_kernel(my_ocl, gemm_ref, kernel_entry);
+	std::vector<float> outputs_gpu;
+	if (g_enable_fp16)
+	{
+		auto outputs_gpu_half = run_gemm_kernel<half>(my_ocl, gemm_ref, kernel_entry);
+		outputs_gpu = vec_to_float(outputs_gpu_half);
+	}
+	else
+		outputs_gpu = run_gemm_kernel<float>(my_ocl, gemm_ref, kernel_entry);
 
 	// std::cout << "== Ref VS GPU result compare:" << std::endl;
-	is_same_buf("== Ref vs GPU gemm:", gemm_ref->get_output(), outputs_gpu.data(), 0.001, false, m, n, k);
+	is_same_buf("== Ref vs GPU gemm:", gemm_ref->get_output(), outputs_gpu.data(), g_enable_fp16 ? 0.1: 0.001, false, m, n, k);
 
 	return 0;
 }

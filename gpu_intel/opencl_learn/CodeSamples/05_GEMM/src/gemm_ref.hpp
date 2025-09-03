@@ -12,6 +12,7 @@
 #include <chrono>
 
 #include "my_common.hpp"
+#include "utils_half.hpp"
 
 class CGEMM_Ref
 {
@@ -19,6 +20,10 @@ class CGEMM_Ref
 	float *_input = nullptr;
 	float *_weight = nullptr;
 	float *_output = nullptr;
+
+	half *_input_half = nullptr;
+	half *_weight_half = nullptr;
+	half *_output_half = nullptr;
 	void init_random_data()
 	{
 		std::random_device rd;
@@ -26,15 +31,24 @@ class CGEMM_Ref
 		std::uniform_real_distribution<float> dis(0.0f, 1.0f);
 
 		_input = new float[_m * _k];
+		_input_half = new half[_m * _k];
 		for (int i = 0; i < _m * _k; i++)
 		{
-			_input[i] = dis(gen);
+			_input[i] = dis(gen) / 10.0f;
+			_input_half[i] = floatToHalf(_input[i]);
+
+			if (i == 0) {
+				std::cout << "_input[i] = " << _input[i] << std::endl;
+				std::cout << "_input_half[i] = " << _input_half[i] << std::endl;
+				std::cout << "halfToFloat(_input_half[i]) = " << halfToFloat(_input_half[i]) << std::endl;
+			}
 		}
 		_weight = new float[_k * _n];
+		_weight_half = new half[_k * _n];
 		for (int i = 0; i < _k * _n; i++)
 		{
-			_weight[i] = dis(gen);
-			// _weight[i] = _weight[i] / 10.0f;
+			_weight[i] = dis(gen) / 10.0f;
+			_weight_half[i] = floatToHalf(_weight[i]);
 		}
 		_output = new float[_m * _n];
 		memset(_output, 0, _m * _n * sizeof(float));
@@ -59,7 +73,7 @@ class CGEMM_Ref
 		auto t1 = std::chrono::high_resolution_clock::now();
 		for (int m = 0; m < _m; m++)
 		{
-// #pragma omp parallel for num_threads(8)
+			// #pragma omp parallel for num_threads(8)
 			for (int n = 0; n < _n; n++)
 			{
 				_output[m * _n + n] = 0;
@@ -93,30 +107,50 @@ public:
 	}
 	~CGEMM_Ref()
 	{
-		if (_input)
-			delete[] _input;
-		if (_weight)
-			delete[] _weight;
-		if (_output)
-			delete[] _output;
+#define DEL(BUF) \
+	if (BUF)     \
+		delete[] BUF;
+
+		DEL(_input);
+		DEL(_weight);
+		DEL(_output);
+		DEL(_input_half);
+		DEL(_weight_half);
+		DEL(_output_half);
 	}
 
-	float *get_input()
+	template<typename T>
+	T *get_input()
 	{
-		return _input;
+		if constexpr (std::is_same_v<T, float>) {
+			return _input;
+		}
+		else {
+			return _input_half;
+		}
 	}
-	float *get_weight()
+
+	template <typename T>
+	T *get_weight()
 	{
-		return _weight;
+		if constexpr (std::is_same_v<T, float>)
+		{
+			return _weight;
+		}
+		else
+		{
+			return _weight_half;
+		}
 	}
+
 	float *get_output()
 	{
 		return _output;
 	}
 };
 
-
-inline bool is_same_buf(std::string prefix, float* output1, float*  output2, float T, bool trans_b, int M, int N, int K) {
+inline bool is_same_buf(std::string prefix, float *output1, float *output2, float T, bool trans_b, int M, int N, int K)
+{
 	bool bsame = true;
 	for (size_t i = 0; i < M; i++)
 	{

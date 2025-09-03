@@ -17,10 +17,34 @@ __kernel void gemm_ref(
 
     uint i = gid_0;
     uint j = gid_1;
-    C[i * N + j] = 0;
+
+    float tmp = 0;
     for (int k = 0; k < K; k++) {
-        C[i * N + j] += A[i * K + k] * B[k * N + j];
+        tmp += A[i * K + k] * B[k * N + j];
     };
+    C[i * N + j] = tmp;
+}
+
+#pragma OPENCL EXTENSION cl_khr_fp16 : enable
+__kernel void gemm_ref_half(
+    __global const half *A,
+    __global const half *B,
+    __global half *C,
+    int M, int K, int N,
+    float alpha,
+    float beta)
+{
+    uint gid_0 = get_global_id(0);
+    uint gid_1 = get_global_id(1);
+
+    uint i = gid_0;
+    uint j = gid_1;
+
+    float tmp = 0;
+    for (int k = 0; k < K; k++) {
+        tmp += A[i * K + k] * B[k * N + j];
+    };
+    C[i * N + j] = tmp;
 }
 
 // GEMM: M=[1,7], N=2048, K=2048,针对小M，大weight，优化。
