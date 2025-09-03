@@ -142,3 +142,8 @@ inline std::vector<float> generate_vec(int sz) {
     std::generate(random_floats.begin(), random_floats.end(), rand_float);
 	return random_floats;
 }
+
+inline size_t tm_diff_ms(std::chrono::time_point<std::chrono::high_resolution_clock> &t1, std::chrono::time_point<std::chrono::high_resolution_clock> &t2)
+{
+	return std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count();
+}

@@ -8,4 +8,4 @@ add_subdirectory(01_HelloOpenCL)
 add_subdirectory(02_Rope_kernel_opencl)
 add_subdirectory(03_DPP_algo)
 add_subdirectory(04_array_max)
-
+add_subdirectory(05_GEMM)
