@@ -42,3 +42,9 @@ lws=[1,1,1]
 | [M,N,1] | [1,1,1]  | gemm_ref_half_weight_trans           | 3.1409   | 1.2225        |
 | [M,N,1] | [1,1,1]  | gemm_half4_weight_trans              | 1.9201   | 0.6306        |
 | [M,N,1] | [1,32,1] | gemm_half4_weight_trans              | 0.8651   | 0.294         |
+
+``Test command:``
+
+```
+ENABLE_HALF=0 ENABLE_WEIGHT_TRANS=0 ENABLE_HALF4=0 ./05_GEMM/05_GEMM|
+```
