@@ -16,8 +16,10 @@
 
 static size_t g_max_ws_in_one_group[3] = {0};
 static cl_uint g_max_compute_units = 0;
-static bool g_enable_fp16 = true;
-static bool g_enable_weight_trans = true;
+
+static bool g_enable_fp16 = true;		  // 使用fp16，节省内存带宽。
+static bool g_enable_weight_trans = true; // 调整weight内存顺序，顺序读取，提升io
+static bool g_enable_half4 = true;		  // 一次处理4个fp16
 
 // float/fp16
 template<typename T>
@@ -100,6 +102,7 @@ int main()
 
 	get_env_bool("ENABLE_HALF", g_enable_fp16);
 	get_env_bool("ENABLE_WEIGHT_TRANS", g_enable_weight_trans);
+	get_env_bool("ENABLE_HALF4", g_enable_half4);
 
 	if (get_env_int("M") > 0)
 		m = get_env_int("M");
@@ -113,6 +116,14 @@ int main()
 	kernel_entry = "gemm_ref";
 	if (g_enable_fp16)
 		kernel_entry = kernel_entry + "_half";
+	if (g_enable_half4) {
+		kernel_entry = "gemm_half4";
+		if (!g_enable_weight_trans)
+		{
+			std::cout << "  Error: When enable half4, g_enable_weight_trans must be true." << std::endl;
+			return 0;
+		}
+	}
 	if (g_enable_weight_trans)
 		kernel_entry = kernel_entry + "_weight_trans";
 	auto my_ocl = CMyTest(kernel_entry, kernel_fn);

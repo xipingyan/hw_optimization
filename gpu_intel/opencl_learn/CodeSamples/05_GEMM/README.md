@@ -28,13 +28,16 @@ EU number: 160  <br>
 Max group size: 1024    <br>
 Preferred group size: 16       // lws：最好设置为16的倍数   <br>
 
+M = 3, K = 3584, N = 3584   <br>
+
 gws=[M,N,1]
 lws=[1,1,1]
 
 <br>
 
-|   gws   |   lws   | Kernel entry                   | Time ms  |
-| --------| --------|:-----------------------------  | :------  |
-| [M,N,1] | [1,1,1] | gemm_ref                       | 10.3742  |
-| [M,N,1] | [1,1,1] | gemm_ref_half                  | 7.3818   |
-| [M,N,1] | [1,1,1] | gemm_ref_half_weight_trans     | 3.1409   |
+|   gws   |   lws   | Kernel entry                         | Time ms  |
+| --------| --------|:------------------------------------ | :------  |
+| [M,N,1] | [1,1,1] | gemm_ref                             | 10.3742  |
+| [M,N,1] | [1,1,1] | gemm_ref_half                        | 7.3818   |
+| [M,N,1] | [1,1,1] | gemm_ref_half_weight_trans           | 3.1409   |
+| [M,N,1] | [1,1,1] | gemm_half4_weight_trans              | 1.9201   |
