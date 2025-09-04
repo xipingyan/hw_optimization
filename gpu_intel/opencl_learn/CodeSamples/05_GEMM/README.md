@@ -35,10 +35,10 @@ lws=[1,1,1]
 
 <br>
 
-|   gws   |   lws    | Kernel entry                         | Time ms  |
-| --------| -------- |:------------------------------------ | :------  |
-| [M,N,1] | [1,1,1]  | gemm_ref                             | 10.3742  |
-| [M,N,1] | [1,1,1]  | gemm_ref_half                        | 7.3818   |
-| [M,N,1] | [1,1,1]  | gemm_ref_half_weight_trans           | 3.1409   |
-| [M,N,1] | [1,1,1]  | gemm_half4_weight_trans              | 1.9201   |
-| [M,N,1] | [1,32,1] | gemm_half4_weight_trans              | 0.8651   |
+|   gws   |   lws    | Kernel entry                         | Time ms  | A770 Time ms  |
+| --------| -------- |:------------------------------------ | :------  | :------------ |
+| [M,N,1] | [1,1,1]  | gemm_ref                             | 10.3742  | 5.4987        |
+| [M,N,1] | [1,1,1]  | gemm_ref_half                        | 7.3818   | 5.6788        |
+| [M,N,1] | [1,1,1]  | gemm_ref_half_weight_trans           | 3.1409   | 1.2225        |
+| [M,N,1] | [1,1,1]  | gemm_half4_weight_trans              | 1.9201   | 0.6306        |
+| [M,N,1] | [1,32,1] | gemm_half4_weight_trans              | 0.8651   | 0.294         |

@@ -149,15 +149,7 @@ inline MyDevInfo get_device_info(size_t max_ws_in_one_group[3], cl_uint& max_com
 	std::cerr << "== Getting device info." << std::endl;
 
 	// 获取平台和设备
-	err = clGetPlatformIDs(1, &platform, NULL);
-	err = clGetDeviceIDs(platform, CL_DEVICE_TYPE_GPU, 1, &device, &num_devices);
-	if (err != CL_SUCCESS)
-	{
-		std::cerr << "  Error: getting device info." << std::endl;
-		max_ws_in_one_group[0] = max_ws_in_one_group[1] = max_ws_in_one_group[2] = 1024;
-		// return;
-		exit(0);
-	}
+	device = get_gpu_device().get();
 
 	// 1. 查询每个工作组的最大工作项数量
 	size_t max_work_group_size;
