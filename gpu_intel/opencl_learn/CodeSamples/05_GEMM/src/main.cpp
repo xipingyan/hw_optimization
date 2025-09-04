@@ -32,7 +32,7 @@ std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std
 	std::vector<T> output(M * N, 0);
 
 	// Default reference.
-	auto lws = cl::NDRange(1);
+	auto lws = cl::NDRange(1, 32, 1);
 	auto gws = cl::NDRange(M, N, 1);
 	if (kernel_entry == "gemm_optimized")
 	{
@@ -98,7 +98,7 @@ int main()
 
 	std::cout << "== Generate random test data." << std::endl;
 	int m = 1, k = 2048, n = 2048;
-	m = 3, k = 3584, n = 3584;
+	m = 3, k = 3584, n = 3584;// [3584, 4608, 18944]
 
 	get_env_bool("ENABLE_HALF", g_enable_fp16);
 	get_env_bool("ENABLE_WEIGHT_TRANS", g_enable_weight_trans);
@@ -130,6 +130,7 @@ int main()
 
 	// =Print some params =================
 	std::cout << "  g_enable_fp16 = " << g_enable_fp16 << std::endl;
+	std::cout << "  g_enable_half4 = " << g_enable_half4 << std::endl;
 	std::cout << "  g_enable_weight_trans = " << g_enable_weight_trans << std::endl;
 	auto kernel_perferred_workgroup_size_multiple = get_kernel_perferred_workgroup_size_multiple(my_ocl.get_kernel(), my_ocl.get_device());
 	std::cout << "  kernel_perferred_workgroup_size_multiple = " << kernel_perferred_workgroup_size_multiple << std::endl;
