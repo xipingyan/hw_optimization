@@ -157,16 +157,23 @@ inline std::string get_env_str(std::string str_env)
 	return std::string();
 }
 
-inline bool get_env_bool(std::string str_env)
+inline void get_env_bool(const char* str_env, bool& b_out)
 {
-	if (std::getenv(str_env.c_str()))
+	char *p8env = std::getenv(str_env);
+	if (p8env != nullptr)
 	{
-		return std::string(std::getenv(str_env.c_str())) == std::string("1") ||
-			   std::string(std::getenv(str_env.c_str())) == std::string("true") ||
-			   std::string(std::getenv(str_env.c_str())) == std::string("True") ||
-			   std::string(std::getenv(str_env.c_str())) == std::string("TRUE");
+		if (std::string(p8env) == std::string("1") ||
+			std::string(p8env) == std::string("true") ||
+			std::string(p8env) == std::string("True") ||
+			std::string(p8env) == std::string("TRUE"))
+		{
+			b_out = true;
+		}
+		else
+		{
+			b_out = false;
+		}
 	}
-	return false;
 }
 
 inline int get_env_int(std::string str_env)

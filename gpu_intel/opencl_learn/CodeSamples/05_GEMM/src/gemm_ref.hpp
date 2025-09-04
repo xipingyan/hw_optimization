@@ -19,10 +19,12 @@ class CGEMM_Ref
 	int _m, _n, _k;
 	float *_input = nullptr;
 	float *_weight = nullptr;
+	float *_weight_trans = nullptr;
 	float *_output = nullptr;
 
 	half *_input_half = nullptr;
 	half *_weight_half = nullptr;
+	half *_weight_half_trans = nullptr;
 	half *_output_half = nullptr;
 	void init_random_data()
 	{
@@ -44,12 +46,24 @@ class CGEMM_Ref
 			// }
 		}
 		_weight = new float[_k * _n];
+		_weight_trans = new float[_k * _n];
 		_weight_half = new half[_k * _n];
-		for (int i = 0; i < _k * _n; i++)
+		_weight_half_trans = new half[_k * _n];
+		for (int k = 0; k < _k; k++)
 		{
-			_weight[i] = dis(gen) / 10.0f;
-			_weight_half[i] = floatToHalf(_weight[i]);
+			for (int n = 0; n < _n; n++)
+			{
+				int id = k*_n + n;
+				_weight[id] = dis(gen) / 10.0f;
+				_weight_half[id] = floatToHalf(_weight[id]);
+
+				// Trans
+				int id_trans = n * _k + k;
+				_weight_trans[id_trans] = _weight[id];
+				_weight_half_trans[id_trans] = _weight_half[id];
+			}
 		}
+
 		_output = new float[_m * _n];
 		memset(_output, 0, _m * _n * sizeof(float));
 #if 0
@@ -131,15 +145,15 @@ public:
 	}
 
 	template <typename T>
-	T *get_weight()
+	T *get_weight(bool btrans = false)
 	{
 		if constexpr (std::is_same_v<T, float>)
 		{
-			return _weight;
+			return btrans ? _weight_trans : _weight;
 		}
 		else
 		{
-			return _weight_half;
+			return btrans ? _weight_half_trans : _weight_half;
 		}
 	}
 

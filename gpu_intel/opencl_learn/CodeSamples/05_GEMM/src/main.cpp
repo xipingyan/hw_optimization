@@ -16,7 +16,8 @@
 
 static size_t g_max_ws_in_one_group[3] = {0};
 static cl_uint g_max_compute_units = 0;
-static bool g_enable_fp16 = false;
+static bool g_enable_fp16 = true;
+static bool g_enable_weight_trans = true;
 
 // float/fp16
 template<typename T>
@@ -46,7 +47,7 @@ std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std
 
 	// write mat to the device
 	my_olc.get_queue()->enqueueWriteBuffer(buffer_intput, CL_TRUE, 0, sizeof(T) * M * K, gemm_ref_ptr->get_input<T>());
-	my_olc.get_queue()->enqueueWriteBuffer(buffer_weight, CL_TRUE, 0, sizeof(T) * K * N, gemm_ref_ptr->get_weight<T>());
+	my_olc.get_queue()->enqueueWriteBuffer(buffer_weight, CL_TRUE, 0, sizeof(T) * K * N, gemm_ref_ptr->get_weight<T>(g_enable_weight_trans));
 
 	auto kernel_dpp = my_olc.get_kernel();
 	kernel_dpp.setArg(0, buffer_intput);
@@ -97,8 +98,9 @@ int main()
 	int m = 1, k = 2048, n = 2048;
 	m = 3, k = 3584, n = 3584;
 
-	if (get_env_bool("ENABLE_HALF"))
-		g_enable_fp16 = true;
+	get_env_bool("ENABLE_HALF", g_enable_fp16);
+	get_env_bool("ENABLE_WEIGHT_TRANS", g_enable_weight_trans);
+
 	if (get_env_int("M") > 0)
 		m = get_env_int("M");
 	if (get_env_int("N") > 0)
@@ -106,16 +108,18 @@ int main()
 	if (get_env_int("K") > 0)
 		k = get_env_int("K");
 
-
 	std::string kernel_fn = "../05_GEMM/src/gemm_kernel.cl";
 	std::string kernel_entry = "gemm_optimized";
-	// kernel_entry = "gemm_ref";
+	kernel_entry = "gemm_ref";
 	if (g_enable_fp16)
 		kernel_entry = kernel_entry + "_half";
+	if (g_enable_weight_trans)
+		kernel_entry = kernel_entry + "_weight_trans";
 	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
 
-	// ==================
+	// =Print some params =================
 	std::cout << "  g_enable_fp16 = " << g_enable_fp16 << std::endl;
+	std::cout << "  g_enable_weight_trans = " << g_enable_weight_trans << std::endl;
 	auto kernel_perferred_workgroup_size_multiple = get_kernel_perferred_workgroup_size_multiple(my_ocl.get_kernel(), my_ocl.get_device());
 	std::cout << "  kernel_perferred_workgroup_size_multiple = " << kernel_perferred_workgroup_size_multiple << std::endl;
 

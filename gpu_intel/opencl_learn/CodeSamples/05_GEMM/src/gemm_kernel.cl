@@ -47,6 +47,27 @@ __kernel void gemm_ref_half(
     C[i * N + j] = tmp;
 }
 
+__kernel void gemm_ref_half_weight_trans(
+    __global const half *A,
+    __global const half *B,
+    __global half *C,
+    int M, int K, int N,
+    float alpha,
+    float beta)
+{
+    uint gid_0 = get_global_id(0);
+    uint gid_1 = get_global_id(1);
+
+    uint i = gid_0; // M
+    uint j = gid_1; // N
+
+    float tmp = 0;
+    for (int k = 0; k < K; k++) {
+        tmp += A[i * K + k] * B[j * K + k];
+    };
+    C[i * N + j] = tmp;
+}
+
 // GEMM: M=[1,7], N=2048, K=2048,针对小M，大weight，优化。
 __attribute__((intel_reqd_sub_group_size(16)))
 __kernel void gemm_optimized(
