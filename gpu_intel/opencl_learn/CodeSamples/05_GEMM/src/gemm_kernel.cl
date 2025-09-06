@@ -19,6 +19,8 @@ __kernel void gemm_ref(
     uint j = gid_1;
 
     float tmp = 0;
+    // 让编译器尝试着去展开循环，性能提升很大
+    __attribute__((opencl_unroll_hint(8)))
     for (int k = 0; k < K; k++) {
         tmp += A[i * K + k] * B[k * N + j];
     };
@@ -62,6 +64,7 @@ __kernel void gemm_ref_half_weight_trans(
     uint j = gid_1; // N
 
     float tmp = 0;
+    __attribute__((opencl_unroll_hint(8)))
     for (int k = 0; k < K; k++) {
         tmp += A[i * K + k] * B[j * K + k];
     };
@@ -89,6 +92,7 @@ __kernel void gemm_half4_weight_trans(
 
     int off_i = i * K;
     int off_j = j * K;
+
     for (int k = 0; k < k4; ++k) {
         int a_idx = off_i + k * 4;
         int b_idx = off_j + k * 4;

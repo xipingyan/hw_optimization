@@ -43,8 +43,16 @@ lws=[1,1,1]
 | [M,N,1] | [1,1,1]  | gemm_half4_weight_trans              | 1.795    | 0.6306        |
 | [M,N,1] | [1,32,1] | gemm_half4_weight_trans              | 0.8651   | 0.294         |
 
+添加``__attribute__((opencl_unroll_hint(8)))``, 让编译器尝试着去展开循环，性能提升很大  <br>
+``GPU:`` A770 <br>
+``gemm_ref:`` 5.4->0.68 ms. <br>
+``gemm_ref_half_weight_trans:`` 1.2 -> 0.4789 <br>
+``gemm_half4_weight_trans:`` 没有提升，可能是half4，已经并行。 <br>
+
+ <br>
+ 
 ``Test command:``
 
 ```
-LWS_1=1 ENABLE_HALF=0 ENABLE_WEIGHT_TRANS=0 ENABLE_HALF4=0 ./05_GEMM/05_GEMM|
+LWS_1=1 ENABLE_HALF=0 ENABLE_WEIGHT_TRANS=0 ENABLE_HALF4=0 ./05_GEMM/05_GEMM
 ```
