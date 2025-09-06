@@ -20,7 +20,7 @@ static cl_uint g_max_compute_units = 0;
 static bool g_enable_fp16 = true;		  // 使用fp16，节省内存带宽。
 static bool g_enable_weight_trans = true; // 调整weight内存顺序，顺序读取，提升io
 static bool g_enable_half4 = true;		  // 一次处理4个fp16
-
+static int  g_lws_1 = 16;
 // float/fp16
 template<typename T>
 std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std::string kernel_entry)
@@ -32,7 +32,7 @@ std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std
 	std::vector<T> output(M * N, 0);
 
 	// Default reference.
-	auto lws = cl::NDRange(1, 32, 1);
+	auto lws = cl::NDRange(1, g_lws_1, 1);
 	auto gws = cl::NDRange(M, N, 1);
 	if (kernel_entry == "gemm_optimized")
 	{
@@ -134,6 +134,8 @@ int main()
 	std::cout << "  g_enable_weight_trans = " << g_enable_weight_trans << std::endl;
 	auto kernel_perferred_workgroup_size_multiple = get_kernel_perferred_workgroup_size_multiple(my_ocl.get_kernel(), my_ocl.get_device());
 	std::cout << "  kernel_perferred_workgroup_size_multiple = " << kernel_perferred_workgroup_size_multiple << std::endl;
+	g_lws_1 = kernel_perferred_workgroup_size_multiple;
+	get_env_int("LWS_1", g_lws_1);
 
 	auto gemm_ref = CGEMM_Ref::createPtr(m, n, k);
 

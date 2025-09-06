@@ -37,14 +37,14 @@ lws=[1,1,1]
 
 |   gws   |   lws    | Kernel entry                         | Time ms  | A770 Time ms  |
 | --------| -------- |:------------------------------------ | :------  | :------------ |
-| [M,N,1] | [1,1,1]  | gemm_ref                             | 10.3742  | 5.4987        |
-| [M,N,1] | [1,1,1]  | gemm_ref_half                        | 7.3818   | 5.6788        |
-| [M,N,1] | [1,1,1]  | gemm_ref_half_weight_trans           | 3.1409   | 1.2225        |
-| [M,N,1] | [1,1,1]  | gemm_half4_weight_trans              | 1.9201   | 0.6306        |
+| [M,N,1] | [1,1,1]  | gemm_ref                             | 10.889   | 5.4987        |
+| [M,N,1] | [1,1,1]  | gemm_ref_half                        | 7.9741   | 5.6788        |
+| [M,N,1] | [1,1,1]  | gemm_ref_half_weight_trans           | 4.0324   | 1.2225        |
+| [M,N,1] | [1,1,1]  | gemm_half4_weight_trans              | 1.795    | 0.6306        |
 | [M,N,1] | [1,32,1] | gemm_half4_weight_trans              | 0.8651   | 0.294         |
 
 ``Test command:``
 
 ```
-ENABLE_HALF=0 ENABLE_WEIGHT_TRANS=0 ENABLE_HALF4=0 ./05_GEMM/05_GEMM|
+LWS_1=1 ENABLE_HALF=0 ENABLE_WEIGHT_TRANS=0 ENABLE_HALF4=0 ./05_GEMM/05_GEMM|
 ```

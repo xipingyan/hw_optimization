@@ -184,3 +184,10 @@ inline int get_env_int(std::string str_env)
 	}
 	return -1;
 }
+inline void get_env_int(std::string str_env, int& out)
+{
+	if (std::getenv(str_env.c_str()))
+	{
+		out = std::atoi(std::getenv(str_env.c_str()));
+	}
+}
