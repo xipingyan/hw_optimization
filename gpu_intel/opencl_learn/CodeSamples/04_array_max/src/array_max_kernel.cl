@@ -18,12 +18,15 @@ inline void AtomicMax(volatile __global float *source, const float operand) {
 void get_array_max_1(__global const float* input, __local float* local_max_array, __global float* output, const int size)
 {
 	const size_t gid_0 = get_global_id(0);
+    const size_t group_id = get_group_id(0);
+
     // printf("    kernel inside: gid_0 = %d\n", gid_0);
 
 	if (gid_0 < size)
 	{
         float value = input[gid_0];
-        AtomicMax(output, value);
+        // 每个group，求一个最大值，返回host后，host在计算所有group的值。
+        AtomicMax(&output[group_id], value);
 	}
 }
 
@@ -46,7 +49,7 @@ void get_array_max_2(__global const float* input, __local float* local_max_array
     }
     local_max_array[lid_0] = input[gid_0];
 
-    // 同步，确保所有线程都已加载数据
+    // 同步，确保当前EU的所有线程都已加载数据
     barrier(CLK_LOCAL_MEM_FENCE);
 
     // Stage 1: 获取每个subgroup内的最大值
@@ -58,10 +61,10 @@ void get_array_max_2(__global const float* input, __local float* local_max_array
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    // Stage 3: 和每一个subgroup的第一个变量进行比较。最终输出结果output。
+    // Stage 3: 和每一个group的第一个变量进行比较。最终把当前group的最大值输出结果output。
     if (lid_0 == 0) {
-        AtomicMax(output, local_max_array[0]);
-        printf("      lid_0 = %d, %f, \n", lid_0, local_max_array[0]);
+        AtomicMax(&output[group_id], local_max_array[0]);
+        // printf("      lid_0 = %d, %f, \n", lid_0, local_max_array[0]);
     }
 }
 
@@ -128,7 +131,8 @@ __kernel void get_array_max_single_group(
     }
 }
 
-// Methold 3: 基于sub_group_clustered_reduce_max的归约， 测试失败。
+// Methold 3: 基于sub_group_clustered_reduce_max的归约
+__kernel __attribute__((reqd_work_group_size(16, 1, 1)))
 void get_array_max_3(__global const float* input, __local float* local_max_array, __global float* output, const int size)
 {
 	// Get the work-group ID and the local ID within the work-group.
@@ -140,42 +144,36 @@ void get_array_max_3(__global const float* input, __local float* local_max_array
     const size_t l_ws_0 = get_local_size(0);
 
     uint sub_group_size = get_sub_group_size();
-    uint sub_group_id = lid_0 / sub_group_size;
-    uint sub_group_lid = lid_0 % sub_group_size;
+    uint sub_group_id = get_sub_group_id();
+    uint sub_group_lid = get_sub_group_local_id();
 
-    printf("gid_0 = %zu, lid_0 = %zu, group_id = %zu, g_ws_0 = %zu, l_ws_0 = %zu\n", gid_0, lid_0, group_id, g_ws_0, l_ws_0);
+    uint sub_groups_num = l_ws_0 / sub_group_size;
+
+    // printf("gid_0 = %zu, lid_0 = %zu, group_id = %zu, g_ws_0 = %zu, l_ws_0 = %zu\n", gid_0, lid_0, group_id, g_ws_0, l_ws_0);
+    // printf("sub_group_size = %zu, sub_group_id = %zu, sub_group_lid=%zu, l_ws_0=%zu\n", sub_group_size, sub_group_id, sub_group_lid, l_ws_0);
 
     float my_value = (gid_0 < size) ? input[gid_0] : -FLT_MAX;
 
     // Stage 1: 获取每个subgroup内的最大值
-    float subgroup_max = sub_group_clustered_reduce_max(my_value, sub_group_size);
- 
-    // Stage 2: Store subgroup maximums in shared local memory
+    float sub_group_max = sub_group_reduce_max(my_value);
     if (sub_group_lid == 0) {
-        local_max_array[sub_group_lid] = subgroup_max;
-        printf("  local_max_array[%d] = %f, sub_group_size = %d\n", sub_group_lid, local_max_array[sub_group_lid], sub_group_size);
+        local_max_array[sub_group_id] = sub_group_max;
+        // printf("%f, sub_group_id=%d\n", local_max_array[sub_group_id], sub_group_id);
     }
     barrier(CLK_LOCAL_MEM_FENCE);
 
-    // Stage 3: 将每个subgroup中的
-    if (sub_group_id == 0) {
-        float group_max = -INFINITY;
-        for (uint i = 0; i < (l_ws_0 + sub_group_size - 1) / sub_group_size; i++) {
-            if (i * sub_group_size + sub_group_id < l_ws_0) {
-                group_max = max(group_max, local_max_array[i * sub_group_size +sub_group_lid]);
+    for (size_t s = sub_groups_num / 2; s > 0; s >>= 1) {
+        if (lid_0 < s) {
+            if (local_max_array[lid_0 + s] > local_max_array[lid_0] ) {
+                local_max_array[lid_0] = local_max_array[lid_0 + s];
             }
         }
-        group_max = sub_group_clustered_reduce_max(group_max, sub_group_size);
-
-        if (sub_group_lid == 0) {
-            local_max_array[0] = group_max;
-        }
+        // 同步，确保本轮比较完成后，数据对所有线程都可见
+        barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    // Stage 3: 和每一个subgroup的第一个变量进行比较。最终输出结果output。
     if (lid_0 == 0) {
-        AtomicMax(output, local_max_array[0]);
-        // printf("      lid_0 = %d, %f, \n", lid_0, local_max_array[0]);
+        output[group_id] = local_max_array[0];
     }
 }
 
@@ -184,6 +182,6 @@ __kernel void get_array_max(__global const float* input,
                             __global float* output, 
                             const int size) {
     // get_array_max_1(input, local_result, output, size);
-    get_array_max_2(input, local_result, output, size);
-    // get_array_max_3(input, local_result, output, size);
+    // get_array_max_2(input, local_result, output, size);
+    get_array_max_3(input, local_result, output, size);
 }

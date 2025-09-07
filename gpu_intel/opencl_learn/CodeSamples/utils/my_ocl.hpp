@@ -197,3 +197,10 @@ inline MyDevInfo get_device_info(size_t max_ws_in_one_group[3], cl_uint& max_com
 
 	return dev_info;
 }
+
+inline MyDevInfo get_device_info()
+{
+	size_t max_ws_in_one_group[3];
+	cl_uint max_compute_units = 0;
+	return get_device_info(max_ws_in_one_group, max_compute_units);
+}
