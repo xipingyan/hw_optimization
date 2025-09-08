@@ -150,6 +150,7 @@ inline size_t tm_diff_ms(std::chrono::time_point<std::chrono::high_resolution_cl
 
 inline std::string get_env_str(std::string str_env)
 {
+	std::cout << "ENV: " << str_env << ", default: empty."<< std::endl;
 	if (std::getenv(str_env.c_str()))
 	{
 		return std::string(std::getenv(str_env.c_str()));
@@ -159,6 +160,7 @@ inline std::string get_env_str(std::string str_env)
 
 inline void get_env_bool(const char* str_env, bool& b_out)
 {
+	std::cout << "ENV: " << str_env << ", default: " << b_out << std::endl;
 	char *p8env = std::getenv(str_env);
 	if (p8env != nullptr)
 	{
@@ -176,16 +178,26 @@ inline void get_env_bool(const char* str_env, bool& b_out)
 	}
 }
 
+inline bool get_env_bool(const char *str_env)
+{
+	bool b_out = false;
+	get_env_bool(str_env, b_out);
+	return b_out;
+}
+
 inline int get_env_int(std::string str_env)
 {
+	std::cout << "ENV: " << str_env << ", default: -1" << std::endl;
 	if (std::getenv(str_env.c_str()))
 	{
 		return std::atoi(std::getenv(str_env.c_str()));
 	}
 	return -1;
 }
+
 inline void get_env_int(std::string str_env, int& out)
 {
+	std::cout << "ENV: " << str_env << ", default: " << out << std::endl;
 	if (std::getenv(str_env.c_str()))
 	{
 		out = std::atoi(std::getenv(str_env.c_str()));

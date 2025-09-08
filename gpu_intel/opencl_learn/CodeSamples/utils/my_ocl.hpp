@@ -1,7 +1,7 @@
 #pragma once
 #include <CL/opencl.hpp>
 #include <iostream>
-
+#include <map>
 struct MyDevInfo
 {
 	size_t device_max_compute_unit = 0;					 // CL_DEVICE_MAX_COMPUTE_UNITS
@@ -81,7 +81,8 @@ class CMyTest
 	cl::Program::Sources sources;
 	cl::Program program;
 	std::shared_ptr<cl::CommandQueue> queue = nullptr;
-	cl::Kernel kernel;
+	cl::Kernel defalt_kernel;
+	std::map<std::string, cl::Kernel> _kernels;
 
 public:
 	CMyTest(const std::string kernel_entry, const std::string kernel_fn) : _kernel_fn(kernel_fn), _kernel_entry(kernel_entry)
@@ -124,15 +125,29 @@ public:
 
 		std::cout << "== Create Kernel with program and run." << std::endl;
 		// alternative way to run the kernel
-		kernel = cl::Kernel(program, kernel_entry.c_str());
-		auto kernel_name = kernel.getInfo<CL_KERNEL_FUNCTION_NAME>();
+		defalt_kernel = cl::Kernel(program, kernel_entry.c_str());
+		auto kernel_name = defalt_kernel.getInfo<CL_KERNEL_FUNCTION_NAME>();
 		std::cout << "  == Crurrent kernel name = " << kernel_name << std::endl;
 	}
 
 	std::shared_ptr<cl::CommandQueue> get_queue() { return queue; }
 	cl::Context get_context() { return context; }
-	cl::Kernel get_kernel() { return kernel; }
 	cl::Device get_device() { return default_device; }
+	cl::Kernel get_kernel() { return defalt_kernel; }
+	cl::Kernel get_kernel(std::string entry)
+	{
+		try
+		{
+			return _kernels[entry];
+		}
+		catch (const std::out_of_range &e)
+		{
+			std::cout << "  Warning: no exist kernel: " << entry << ", create it." << std::endl;
+			auto tmp_kernel = cl::Kernel(program, entry.c_str());
+			_kernels[entry] = tmp_kernel;
+			return tmp_kernel;
+		}
+	}
 
 private:
 };
