@@ -12,7 +12,12 @@ Array add or array max, learn to how to use reduction (规约) algorithm for GPU
 
 # Test result
 
-| kernel name       |  gws       | lws       | time host ms | gpu   | host reduction |
-| :---------------- | :----------| :-------  | :------------| :-----| :--------------|
-| get_array_max_1   | [7680,1,1] | [32,1,1]  | 234          | 231   | 2              |
-| get_array_max_2   | [7680,1,1] | [32,1,1]  | 222          | 218   | 3              |
+It's hard to get stable time on host, just statistic kernel time via onetrace. <br>
+
+Time unit: micro second.    <br>
+
+| kernel name       |  gws       | lws       | onetrace kernel time |
+| :---------------- | :----------| :-------  | :--------------------|
+| get_array_max_1   | [7680,1,1] | [32,1,1]  | 86                   |
+| get_array_max_2   | [7680,1,1] | [32,1,1]  | 24                   |
+| get_array_max_3   | [7680,1,1] | [64,1,1]  | 20                   |
