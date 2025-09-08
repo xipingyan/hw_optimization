@@ -16,8 +16,9 @@ It's hard to get stable time on host, just statistic kernel time via onetrace. <
 
 Time unit: micro second.    <br>
 
-| kernel name       |  gws       | lws       | onetrace kernel time |
-| :---------------- | :----------| :-------  | :--------------------|
-| get_array_max_1   | [7680,1,1] | [32,1,1]  | 86                   |
-| get_array_max_2   | [7680,1,1] | [32,1,1]  | 24                   |
-| get_array_max_3   | [7680,1,1] | [64,1,1]  | 20                   |
+| kernel name                  |  gws       | lws       | onetrace kernel time |
+| :--------------------------- | :----------| :-------  | :--------------------|
+| get_array_max_1              | [7680,1,1] | [32,1,1]  | 86                   |
+| get_array_max_2              | [7680,1,1] | [32,1,1]  | 24                   |
+| get_array_max_3              | [7680,1,1] | [64,1,1]  | 20                   |
+| get_array_max_single_group_1 | [1024,1,1] | [1024,1,1]| 38                   |

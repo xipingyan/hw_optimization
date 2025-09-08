@@ -23,7 +23,7 @@ float run_ref(std::vector<float> &array_input)
 }
 
 MyDevInfo g_dev_info = get_device_info();
-#define ARRAY_SIZE 256*30
+#define ARRAY_SIZE 256 * 30
 
 float run_kernel(CMyTest &my_ocl, std::vector<float> &array_data)
 {
@@ -58,7 +58,7 @@ float run_kernel(CMyTest &my_ocl, std::vector<float> &array_data)
 
 	int64_t sum_tm = 0;
 	int loop_num = 10;
-	
+
 	auto t2 = std::chrono::high_resolution_clock::now();
 	auto run_ocl = [&]()
 	{
@@ -81,9 +81,9 @@ float run_kernel(CMyTest &my_ocl, std::vector<float> &array_data)
 	for (int i = 0; i < loop_num; i++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
-	
-		run_ocl();		
-	
+
+		run_ocl();
+
 		auto t3 = std::chrono::high_resolution_clock::now();
 		auto diff = std::chrono::duration_cast<std::chrono::microseconds>(t3 - t1).count();
 		auto tm_gpu = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
@@ -98,7 +98,8 @@ float run_kernel(CMyTest &my_ocl, std::vector<float> &array_data)
 }
 
 // Test: 跨group求max，适用于单个kernel，在host端同步。
-void test_array_max_all_group() {
+void test_array_max_all_group()
+{
 	std::string kernel_fn = "../04_array_max/src/array_max_kernel.cl";
 	std::string kernel_entry = "get_array_max";
 
@@ -106,12 +107,12 @@ void test_array_max_all_group() {
 
 	// ==================
 	std::vector<float> array_input = {
-        // Batch 0, 4x4 kernel matrix
-        0.8f, 0.3f, 0.1f, 0.2f,  // token 0 row
-        0.3f, 0.9f, 0.4f, 0.1f,  // token 1 row
-        0.1f, 0.4f, 0.7f, 0.5f,  // token 2 row
-        0.2f, 0.1f, 0.5f, 0.6f   // token 3 row
-    };
+		// Batch 0, 4x4 kernel matrix
+		0.8f, 0.3f, 0.1f, 0.2f, // token 0 row
+		0.3f, 0.9f, 0.4f, 0.1f, // token 1 row
+		0.1f, 0.4f, 0.7f, 0.5f, // token 2 row
+		0.2f, 0.1f, 0.5f, 0.6f	// token 3 row
+	};
 	array_input = generate_vec(ARRAY_SIZE);
 
 	std::cout << "== Start to run Reference." << std::endl;
@@ -146,8 +147,9 @@ void test_array_max_all_group() {
 }
 
 // Test: 单个group求max，复杂的kernel，需要再kernel内部求最大值，kernel内部同步，kernel内的后续步骤需要这个最大值。
-void test_array_max_single_group() {
-	std::string kernel_fn = "../04_array_max/src/array_max_kernel.cl";
+void test_array_max_single_group()
+{
+	std::string kernel_fn = "../04_array_max/src/array_max_single_group_kernel.cl";
 	std::string kernel_entry = "get_array_max_single_group";
 
 	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
@@ -190,12 +192,20 @@ void test_array_max_single_group() {
 		kernel.setArg(4, buffer_out_max_id);
 		kernel.setArg(5, static_cast<int>(array_input.size())); // input array size.
 
-		// If lws is null, means = gws.
-		// queue.enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(array_input.size()), cl::NullRange);
-		my_ocl.get_queue()->enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(gws), cl::NDRange(lws));
-		my_ocl.get_queue()->finish();
-
-		// Copy output from device to host
+		int loop_num = 10;
+		int64_t sum_tm = 0;
+		for (int i = 0; i < loop_num; i++)
+		{
+			auto t1 = std::chrono::high_resolution_clock::now();
+			my_ocl.get_queue()->enqueueNDRangeKernel(kernel, cl::NullRange, cl::NDRange(gws), cl::NDRange(lws));
+			my_ocl.get_queue()->finish();
+			auto t2 = std::chrono::high_resolution_clock::now();
+			auto diff = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+			std::cout << "== [" << i << "] host time = " << diff << " micr sec." << std::endl;
+			sum_tm += diff;
+		}
+		if (loop_num > 0)
+			std::cout << "  Mean time = " << sum_tm / loop_num << " micr sec." << std::endl;
 
 		my_ocl.get_queue()->enqueueReadBuffer(buffer_out_max_val, CL_TRUE, 0, sizeof(float), &output_max_val);
 		my_ocl.get_queue()->enqueueReadBuffer(buffer_out_max_id, CL_TRUE, 0, sizeof(int), &output_max_id);
@@ -203,19 +213,6 @@ void test_array_max_single_group() {
 	};
 
 	auto max_ocl = run_kernel();
-	int64_t sum_tm = 0;
-	int loop_num = 10;
-	for (int i = 0; i < loop_num; i++)
-	{
-		auto t1 = std::chrono::high_resolution_clock::now();
-		max_ocl = run_kernel();
-		auto t2 = std::chrono::high_resolution_clock::now();
-		auto diff = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
-		std::cout << "== [" << i << "] host time = " << diff << " micr sec." << std::endl;
-		sum_tm += diff;
-	}
-	if (loop_num > 0)
-		std::cout << "  Mean time = " << sum_tm / loop_num << " micr sec." << std::endl;
 
 	std::cout << "== Done. " << std::endl;
 	bool bclose = is_close<float>({max_ref}, {max_ocl});
