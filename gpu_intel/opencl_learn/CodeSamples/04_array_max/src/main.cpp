@@ -158,8 +158,11 @@ void test_array_max_single_group()
 	int arr_size = ARRAY_SIZE;
 	// arr_size = 9;
 	auto array_input = generate_vec(arr_size);
+	auto t1 = std::chrono::high_resolution_clock::now();
 	auto max_ref = run_ref(array_input);
-	std::cout << "== max_ref = " << max_ref << std::endl;
+	auto t2 = std::chrono::high_resolution_clock::now();
+	auto cpu_tm = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
+	std::cout << "== max_ref = " << max_ref << ", cpu_tm = " << cpu_tm << " micro sec" << std::endl;
 
 	auto run_kernel = [&]()
 	{
@@ -169,7 +172,7 @@ void test_array_max_single_group()
 
 		size_t gws = g_dev_info.device_max_group_size;
 		size_t lws = g_dev_info.device_max_group_size;
-		// gws = lws = 4;
+		// gws = lws = 512;
 		size_t group_sz = gws / lws;
 		// std::cout << "  == Run kernel:" << std::endl;
 		std::cout << "  group_sz = " << group_sz << std::endl;
