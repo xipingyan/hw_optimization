@@ -4,13 +4,14 @@
 #include <map>
 struct MyDevInfo
 {
-	size_t device_max_compute_unit = 0;					 // CL_DEVICE_MAX_COMPUTE_UNITS
-	size_t device_max_group_size = 0;					 // lws不能超过这个值，CL_DEVICE_MAX_WORK_GROUP_SIZE
-	size_t device_max_work_item_size[3];				 // CL_DEVICE_MAX_WORK_ITEM_SIZES
+	size_t device_max_compute_unit = 0;	 // CL_DEVICE_MAX_COMPUTE_UNITS
+	size_t device_max_group_size = 0;	 // lws不能超过这个值，CL_DEVICE_MAX_WORK_GROUP_SIZE
+	size_t device_max_work_item_size[3]; // CL_DEVICE_MAX_WORK_ITEM_SIZES
 };
 
 // lws 比较喜欢这个值的倍数。 CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE
-inline size_t get_kernel_perferred_workgroup_size_multiple(cl::Kernel kernel, cl::Device device) {
+inline size_t get_kernel_perferred_workgroup_size_multiple(cl::Kernel kernel, cl::Device device)
+{
 	size_t kernel_perferred_workgroup_size_multiple = 0;
 	auto err = clGetKernelWorkGroupInfo(
 		kernel.get(),
@@ -19,10 +20,12 @@ inline size_t get_kernel_perferred_workgroup_size_multiple(cl::Kernel kernel, cl
 		sizeof(size_t),
 		&kernel_perferred_workgroup_size_multiple,
 		NULL);
-	if (err == CL_SUCCESS) {
+	if (err == CL_SUCCESS)
+	{
 		// std::cout << "  Kernel preferred work group size multiple: " << kernel_perferred_workgroup_size_multiple << std::endl;
 	}
-	else {
+	else
+	{
 		std::cout << "  Error: get CL_KERNEL_PREFERRED_WORK_GROUP_SIZE_MULTIPLE, err = " << err << std::endl;
 	}
 	return kernel_perferred_workgroup_size_multiple;
@@ -127,7 +130,7 @@ public:
 		// alternative way to run the kernel
 		defalt_kernel = cl::Kernel(program, kernel_entry.c_str());
 		auto kernel_name = defalt_kernel.getInfo<CL_KERNEL_FUNCTION_NAME>();
-		std::cout << "  == Crurrent kernel name = " << kernel_name << std::endl;
+		std::cout << "  == Crurrent default kernel name = " << kernel_name << std::endl;
 	}
 
 	std::shared_ptr<cl::CommandQueue> get_queue() { return queue; }
@@ -138,7 +141,7 @@ public:
 	{
 		try
 		{
-			return _kernels[entry];
+			return _kernels.at(entry);
 		}
 		catch (const std::out_of_range &e)
 		{
@@ -152,7 +155,7 @@ public:
 private:
 };
 
-inline MyDevInfo get_device_info(size_t max_ws_in_one_group[3], cl_uint& max_compute_units)
+inline MyDevInfo get_device_info(size_t max_ws_in_one_group[3], cl_uint &max_compute_units)
 {
 	MyDevInfo dev_info;
 

@@ -17,8 +17,10 @@
 static MyDevInfo g_dev_inf;
 static bool g_enable_fp16 = true;
 static bool g_enable_weight_trans = true;
+static int g_loop = get_env_bool("PERFORMANCE") ? 10 : 0;
 
-cl::Buffer prepack_b(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr) {
+cl::Buffer prepack_b(CMyTest &my_olc, CGEMM_Ref::Ptr gemm_ref_ptr)
+{
 	std::string kernel_entry = "gemm_XMX_prepackB";
 	auto kernel = my_olc.get_kernel(kernel_entry);
 
@@ -38,7 +40,7 @@ cl::Buffer prepack_b(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr) {
 	int K = gemm_ref_ptr->get_k();
 
 	// [WG_SGS, self.N//SG_N, BM//SG_M], [WG_SGS, WG_N, WG_M]
-	auto gws = cl::NDRange(WG_SGS, N/SG_N, BM/SG_M);
+	auto gws = cl::NDRange(WG_SGS, N / SG_N, BM / SG_M);
 	auto lws = cl::NDRange(WG_SGS, WG_N, WG_M);
 
 	auto context = my_olc.get_context();
@@ -48,25 +50,24 @@ cl::Buffer prepack_b(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr) {
 	// write mat to the device
 	my_olc.get_queue()->enqueueWriteBuffer(buffer_weight_raw, CL_TRUE, 0, sizeof(half) * N * K, gemm_ref_ptr->get_weight<half>());
 
-	auto kernel_dpp = my_olc.get_kernel();
-	kernel_dpp.setArg(0, buffer_weight_raw);
-	kernel_dpp.setArg(1, buffer_weight_packed);
-	kernel_dpp.setArg(2, N);
-	kernel_dpp.setArg(3, K);
+	kernel.setArg(0, buffer_weight_raw);
+	kernel.setArg(1, buffer_weight_packed);
+	kernel.setArg(2, N);
+	kernel.setArg(3, K);
 	std::cout << "  == Params prepack_b:" << std::endl;
-	std::cout << "     gws = [" << gws[0] << "," << gws[1]<< "," << gws[2] << "]" << std::endl;
-	std::cout << "     lws = [" << lws[0] << "," << lws[1]<< "," << lws[2] << "]" << std::endl;
+	std::cout << "     gws = [" << gws[0] << "," << gws[1] << "," << gws[2] << "]" << std::endl;
+	std::cout << "     lws = [" << lws[0] << "," << lws[1] << "," << lws[2] << "]" << std::endl;
 
 	// warmup.
-	my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, gws, lws);
+	my_olc.get_queue()->enqueueNDRangeKernel(kernel, cl::NullRange, gws, lws);
 	my_olc.get_queue()->finish();
 
 	return buffer_weight_packed;
 }
 
 // float/fp16
-template<typename T>
-static std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std::string kernel_entry)
+template <typename T>
+static std::vector<T> run_gemm_kernel(CMyTest &my_olc, CGEMM_Ref::Ptr gemm_ref_ptr, std::string kernel_entry)
 {
 	auto M = gemm_ref_ptr->get_m();
 	auto N = gemm_ref_ptr->get_n();
@@ -89,8 +90,8 @@ static std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_p
 #define SLM_use (BM * BK + BN * BK) * 2
 
 	auto M_padded = (M + (BM - 1)) / BM * BM;
-	auto gws = cl::NDRange(WG_SGS, N/SG_N, M_padded/SG_M); // [WG_SGS, N//SG_N, M_padded//SG_M],
-	auto lws = cl::NDRange(WG_SGS, WG_N, WG_M);	   // [WG_SGS, WG_N, WG_M]
+	auto gws = cl::NDRange(WG_SGS, N / SG_N, M_padded / SG_M); // [WG_SGS, N//SG_N, M_padded//SG_M],
+	auto lws = cl::NDRange(WG_SGS, WG_N, WG_M);				   // [WG_SGS, WG_N, WG_M]
 
 	float bias = 0;
 
@@ -115,16 +116,15 @@ static std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_p
 	kernel_dpp.setArg(6, N);
 
 	std::cout << "  == Params :" << kernel_entry << std::endl;
-	std::cout << "     gws = [" << gws[0] << "," << gws[1]<< "," << gws[2] << "]" << std::endl;
-	std::cout << "     lws = [" << lws[0] << "," << lws[1]<< "," << lws[2] << "]" << std::endl;
+	std::cout << "     gws = [" << gws[0] << "," << gws[1] << "," << gws[2] << "]" << std::endl;
+	std::cout << "     lws = [" << lws[0] << "," << lws[1] << "," << lws[2] << "]" << std::endl;
 
 	// warmup.
 	my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, gws, lws);
 	my_olc.get_queue()->finish();
 
 	int64_t total_tm = 0;
-	int loop = 10;
-	for (int l = 0; l < loop; l++)
+	for (int l = 0; l < g_loop; l++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
 		my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, gws, lws);
@@ -132,9 +132,10 @@ static std::vector<T> run_gemm_kernel(CMyTest& my_olc, CGEMM_Ref::Ptr gemm_ref_p
 		auto t2 = std::chrono::high_resolution_clock::now();
 		auto diff = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count();
 		total_tm += diff;
-		std::cout << "  == tm = " << diff/1000.f << " ms" << std::endl;
+		std::cout << "  == tm = " << diff / 1000.f << " ms" << std::endl;
 	}
-	std::cout << "  == mean time = " << (float)total_tm / (loop * 1000.f) << " ms" << std::endl;
+	if (g_loop > 0)
+		std::cout << "  == mean time = " << (float)total_tm / (g_loop * 1000.f) << " ms" << std::endl;
 
 	std::cout << "  == Start to copy output from device to host" << std::endl;
 	// Copy output from device to host
