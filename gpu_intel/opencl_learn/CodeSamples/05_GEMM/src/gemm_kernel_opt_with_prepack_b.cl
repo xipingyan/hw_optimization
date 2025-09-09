@@ -18,6 +18,9 @@
 #define SLM_size 65536
 #define SLM_use (BM * BK + BN * BK) * 2
 
+#define USE_DPAS 0
+#define USE_DPASW 1
+
 ulong __attribute__((overloadable)) intel_get_cycle_counter(void);
 __attribute__((intel_reqd_sub_group_size(WG_SGS)))
 __kernel void gemm_XMX_prepackB(__global half *Bsrc, __global half *Bdst, int N, int K)
@@ -30,7 +33,11 @@ __kernel void gemm_XMX_prepackB(__global half *Bsrc, __global half *Bdst, int N,
     int wg_n = get_group_id(1);
     int wg_m = get_group_id(2);
 
-    printf("lid=[%d,%d,%d], sg_id=%d, wg_id_n_m[%d,%d]\n", sg_c, sg_n, sg_m, sg_id, wg_n, wg_m);
+    // printf("lid=[%d,%d,%d], sg_id=%d, wg_id_n_m[%d,%d]\n", sg_c, sg_n, sg_m, sg_id, wg_n, wg_m);
+    // if (get_global_id(0) == 0 && get_global_id(2) == 0 && get_global_id(1) == 0) {
+    //     printf("** gws=[%d,%d,%d], lws[%d,%d,%d]\n", get_global_size(0), get_global_size(1), get_global_size(2), 
+    //         get_local_size(0), get_local_size(1), get_local_size(2));
+    // }
     // # Bsrc/Bdst: [N, K]
     Bsrc += wg_n * BN * K;
     Bdst += wg_n * BN * K;

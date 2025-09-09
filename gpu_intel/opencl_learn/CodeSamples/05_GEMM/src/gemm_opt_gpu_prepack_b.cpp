@@ -19,22 +19,24 @@ static bool g_enable_fp16 = true;
 static bool g_enable_weight_trans = true;
 static int g_loop = get_env_bool("PERFORMANCE") ? 10 : 0;
 
-cl::Buffer prepack_b(CMyTest &my_olc, CGEMM_Ref::Ptr gemm_ref_ptr)
-{
-	std::string kernel_entry = "gemm_XMX_prepackB";
-	auto kernel = my_olc.get_kernel(kernel_entry);
-
+// Reference: https://github.com/usstq/aboutSHW/blob/main/opencl/clops/linear_f16xmx.py#L80
+// Learn how to use intel XMX to accelerate gemm.
 #define WG_SGS 8 // sub-group size (must be 8 for dpasw)
 #define WG_N 8	 // max 16
 #define WG_M 4	 // max 8
 #define SG_M (4 * 8)
 #define SG_N (2 * 8)
 // all sub-groups in a work-group handles sub-matrix C of shape [BM, BN]
-#define BM WG_M *SG_M // 4*(4*8)
-#define BN WG_N *SG_N // 8*(2*8)
-#define BK 64		  // BK is limited by SLM size
+#define BM (WG_M * SG_M) // 4*(4*8)
+#define BN (WG_N * SG_N) // 8*(2*8)
+#define BK 64			 // BK is limited by SLM size
 #define SLM_size 65536
 #define SLM_use (BM * BK + BN * BK) * 2
+
+cl::Buffer prepack_b(CMyTest &my_olc, CGEMM_Ref::Ptr gemm_ref_ptr)
+{
+	std::string kernel_entry = "gemm_XMX_prepackB";
+	auto kernel = my_olc.get_kernel(kernel_entry);
 
 	int N = gemm_ref_ptr->get_n();
 	int K = gemm_ref_ptr->get_k();
@@ -48,7 +50,7 @@ cl::Buffer prepack_b(CMyTest &my_olc, CGEMM_Ref::Ptr gemm_ref_ptr)
 	cl::Buffer buffer_weight_packed(context, CL_MEM_READ_ONLY, sizeof(half) * K * N);
 
 	// write mat to the device
-	my_olc.get_queue()->enqueueWriteBuffer(buffer_weight_raw, CL_TRUE, 0, sizeof(half) * N * K, gemm_ref_ptr->get_weight<half>());
+	my_olc.get_queue()->enqueueWriteBuffer(buffer_weight_raw, CL_TRUE, 0, sizeof(half) * N * K, gemm_ref_ptr->get_weight<half>(g_enable_weight_trans));
 
 	kernel.setArg(0, buffer_weight_raw);
 	kernel.setArg(1, buffer_weight_packed);
@@ -74,20 +76,6 @@ static std::vector<T> run_gemm_kernel(CMyTest &my_olc, CGEMM_Ref::Ptr gemm_ref_p
 	auto K = gemm_ref_ptr->get_k();
 
 	std::vector<T> output(M * N, 0);
-
-	// Reference: https://github.com/usstq/aboutSHW/blob/main/opencl/clops/linear_f16xmx.py#L80
-	// Learn how to use intel XMX to accelerate gemm.
-#define WG_SGS 8 // sub-group size (must be 8 for dpasw)
-#define WG_N 8	 // max 16
-#define WG_M 4	 // max 8
-#define SG_M (4 * 8)
-#define SG_N (2 * 8)
-// all sub-groups in a work-group handles sub-matrix C of shape [BM, BN]
-#define BM WG_M *SG_M // 4*(4*8)
-#define BN WG_N *SG_N // 8*(2*8)
-#define BK 64		  // BK is limited by SLM size
-#define SLM_size 65536
-#define SLM_use (BM * BK + BN * BK) * 2
 
 	auto M_padded = (M + (BM - 1)) / BM * BM;
 	auto gws = cl::NDRange(WG_SGS, N / SG_N, M_padded / SG_M); // [WG_SGS, N//SG_N, M_padded//SG_M],
@@ -162,6 +150,9 @@ void gemm_gpu_opt_prepack_b_xmx(CGEMM_Ref::Ptr gemm_ref_ptr)
 	{
 		auto outputs_gpu_half = run_gemm_kernel<half>(my_ocl, gemm_ref_ptr, kernel_entry);
 		outputs_gpu = vec_to_float(outputs_gpu_half);
+	}else {
+		std::cout << "  Error: only support fp16 now." << std::endl;
+		return;
 	}
 
 	// std::cout << "== Ref VS GPU result compare:" << std::endl;
