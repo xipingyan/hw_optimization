@@ -148,7 +148,7 @@ int main()
 	auto mat = Tensor(1, M, M);
 	mat.random_data();
 	int selected_token_num = M * 0.5;
-	// selected_token_num = 2;
+	// selected_token_num = 1;
 	
 	std::cout << "== Start to run DPP Reference." << std::endl;
 	std::vector<int> selected_token_ref;

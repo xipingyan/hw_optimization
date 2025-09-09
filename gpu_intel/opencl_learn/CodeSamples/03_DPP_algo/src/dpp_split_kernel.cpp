@@ -74,8 +74,9 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, int selected_token_num)
 	kernel_3.setArg(2, buffer_best_id);
 	kernel_3.setArg(3, buffer_cis);
 	kernel_3.setArg(4, buffer_di2s);
+	kernel_3.setArg(5, buffer_output_ids);
 
-	for (int l = 0; l < 1; l++)
+	for (int l = 0; l < 3; l++)
 	{
 		my_ocl.get_queue()->enqueueWriteBuffer(buffer_di2s, CL_TRUE, 0, sizeof(float) * total_tokens_num, vec_di2s.data());
 		my_ocl.get_queue()->enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * mat.get_size(), mat.data);

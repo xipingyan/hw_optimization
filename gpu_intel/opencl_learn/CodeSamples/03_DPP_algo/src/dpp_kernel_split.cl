@@ -106,7 +106,10 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
     cis_data[cis_current_idx] = (kernel_val - projection) / norm_factor;
 }
 
-__kernel void update_marginal_gains(const int iteration, const int M, __global int* output_id, __global float* cis_data, __global float* di2s_data) {
+__kernel void update_marginal_gains(const int iteration, const int M, __global int *output_id,
+                                    __global float *cis_data, __global float *di2s_data,
+                                    __global int* buffer_output_ids)
+{
     uint gid_1 = get_global_id(1);
     
     const int selected_idx = output_id[0];
@@ -121,8 +124,10 @@ __kernel void update_marginal_gains(const int iteration, const int M, __global i
     float eis_j = cis_data[cis_idx];
 
     // Subtract the squared orthogonal component
-    if (selected_idx == j)
+    if (selected_idx == j) {
         di2s_data[selected_idx] = -INFINITY;
+        buffer_output_ids[iteration] = selected_idx;
+    }
     else
         di2s_data[j] -= eis_j * eis_j;
 }
