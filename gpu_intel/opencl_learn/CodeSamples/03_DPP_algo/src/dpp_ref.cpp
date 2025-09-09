@@ -44,7 +44,8 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& mat, size_t
     Tensor di2s(total_tokens);
 
     // Copy diagonal elements from mat for this batch
-    const float* kernel_data = mat.data;
+    size_t offset = batch_idx * total_tokens * total_tokens;
+    const float* kernel_data = mat.data + offset;
     float* di2s_data = di2s.data;
 
     size_t m_sq = total_tokens * total_tokens;
@@ -174,7 +175,7 @@ void FastGreedyDPP::update_orthogonal_vector(const Tensor& mat, size_t batch_idx
 #if 1
     size_t total_tokens = mat.m;
 
-    const float *kernel_data = mat.data;
+    const float *kernel_data = mat.data + batch_idx * mat.m * mat.m;
     const float *di2s_data = di2s.data;
     float *cis_data = cis.data;
     // Get the normalization factor
@@ -209,7 +210,7 @@ void FastGreedyDPP::update_orthogonal_vector(const Tensor& mat, size_t batch_idx
     }
 #else
     size_t total_tokens = mat.m;
-    const float* kernel_data = mat.data;
+    const float *kernel_data = mat.data + batch_idx * mat.m * mat.m;
     const float* di2s_data = di2s.data;
     float* cis_data = cis.data;
 

@@ -207,4 +207,4 @@ private:
 	Config m_config;
 };
 
-std::vector<int> run_dpp_split_kernel(Tensor &mat, int selected_token_num = 0);
+std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t* max_ws_in_one_group, int selected_token_num = 0);

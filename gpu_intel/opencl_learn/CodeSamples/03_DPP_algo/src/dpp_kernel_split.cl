@@ -15,20 +15,20 @@ __kernel void get_array_max_single_group(
     __global int* output_id,
     const int array_size
 ) {
-    // 获取当前工作项在工作组内的本地 ID
-    const size_t lid_0 = get_local_id(1);
-    // 获取工作组的大小
-    const size_t local_size = get_local_size(1);
+    uint batch_id = get_global_id(0);
+    uint lid_0 = get_local_id(1);
+    uint local_size = get_local_size(1);
 
     // 初始化本地最大值为一个极小值
     float my_local_max = -FLT_MAX;
     int my_local_id = 0;
+    __global const float* pdata = input_array + batch_id * array_size;
 
     // --- 阶段1：每个工作项处理它负责的数据块 ---
     // 每个工作项以 local_size 的步长，从全局数组中读取数据
     for (int i = lid_0; i < array_size; i += local_size) {
-        if (input_array[i] > my_local_max) {
-            my_local_max = input_array[i];
+        if (pdata[i] > my_local_max) {
+            my_local_max = pdata[i];
             my_local_id = i;
         }
     }
@@ -61,26 +61,28 @@ __kernel void get_array_max_single_group(
     // 只有本地 ID 为0 的工作项执行此操作
     if (lid_0 == 0) {
         // 将最终结果写入全局输出数组
-        *output_max = local_max_array[0];
-        *output_id = local_max_ids[0];
-        // printf("*output_id = %d, array_size=%d\n", *output_id, array_size);
+        output_max[batch_id] = local_max_array[0];
+        output_id[batch_id] = local_max_ids[0];
+        // if (batch_id == 1)
+        //     printf("*output_id = %d, array_size=%d\n", output_id[batch_id], array_size);
     }
 }
 
 __kernel void update_orthogonal_vector(__global const float *inp_mat, const int M, __global int *output_id,
                                        int iteration, __global float *cis, __global float *di2s,
-                                       const float numerical_threshold)
+                                       const float numerical_threshold, const int selected_token_num)
 {
     uint batch_idx = get_global_id(0);
     uint gid_1 = get_global_id(1);
     uint gid_2 = get_global_id(2);
 
-    const int selected_idx = output_id[0];
+    const int selected_idx = output_id[batch_idx];
 
+    size_t offset = batch_idx * M * M;
     size_t total_tokens = M;
-    __global const float *kernel_data = inp_mat;
-    __global const float *di2s_data = di2s;
-    __global float *cis_data = cis;
+    __global const float *kernel_data = inp_mat + offset;
+    __global const float *di2s_data = di2s + batch_idx * M;
+    __global float *cis_data = cis + batch_idx * M * selected_token_num;
 
     // Get the normalization factor
     float norm_factor = sqrt(di2s_data[selected_idx] + numerical_threshold);
@@ -88,7 +90,7 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
     // Compute the new orthogonal vector for each token
     size_t j = gid_1;
 
-    size_t kernel_idx = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens + j;
+    size_t kernel_idx = selected_idx * total_tokens + j;
     float kernel_val = kernel_data[kernel_idx];
 
     // Subtract the projection onto previously selected vectors
@@ -109,11 +111,16 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
 }
 
 __kernel void update_marginal_gains(const int iteration, const int M, __global int *output_id,
-                                    __global float *cis_data, __global float *di2s_data,
-                                    __global int* buffer_output_ids)
+                                    __global float *cis, __global float *di2s,
+                                    __global int* output_ids, const int selected_token_num)
 {
+    uint batch_idx = get_global_id(0);
     uint gid_1 = get_global_id(1);    
-    const int selected_idx = output_id[0];
+    const int selected_idx = output_id[batch_idx];
+
+    __global float *di2s_data = di2s + batch_idx * M;
+    __global float *cis_data = cis + batch_idx * M * selected_token_num;
+    __global int* output_ids_data = output_ids + batch_idx * selected_token_num;
 
     uint j = gid_1;
     // Skip updating if this token is already selected (marked as negative infinity)
@@ -127,7 +134,7 @@ __kernel void update_marginal_gains(const int iteration, const int M, __global i
     // Subtract the squared orthogonal component
     if (selected_idx == j) {
         di2s_data[selected_idx] = -INFINITY;
-        buffer_output_ids[iteration] = selected_idx;
+        output_ids_data[iteration] = selected_idx;
     }
     else
         di2s_data[j] -= eis_j * eis_j;

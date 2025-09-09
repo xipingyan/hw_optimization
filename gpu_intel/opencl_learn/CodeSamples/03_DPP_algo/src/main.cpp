@@ -115,7 +115,7 @@ std::vector<int> run_ref(Tensor& mat, int selected_token_num = 0) {
 	// warm up
 	std::vector<std::vector<size_t>> selected_tokens;
 	std::cout << "  == calc reference warm up." << std::endl;
-	selected_tokens = dpp_selector->select(mat, selected_token_num);
+	// selected_tokens = dpp_selector->select(mat, selected_token_num);
 
 	auto t1 = std::chrono::high_resolution_clock::now();
 	selected_tokens = dpp_selector->select(mat, selected_token_num);
@@ -137,7 +137,9 @@ int main()
 	get_device_info(g_max_ws_in_one_group, g_max_compute_units);
 
 	int M = (3577+16)/16*16;
+	int B = 1;
 	get_env_int("M", M);
+	get_env_int("B", B);
 	bool dpp_one_group = true;
 	get_env_bool("ONE_GROUP", dpp_one_group);
 	bool dpp_spilt_kernel = false;
@@ -146,7 +148,8 @@ int main()
 	// ==================
 	std::cout << "== Generate random test data." << std::endl;	
 	std::cout << "  M = " << M << std::endl;
-	auto mat = Tensor(1, M, M);
+	std::cout << "  B = " << B << std::endl;
+	auto mat = Tensor(B, M, M);
 	mat.random_data();
 	int selected_token_num = M * 0.5;
 	// selected_token_num = 1;
@@ -161,7 +164,7 @@ int main()
 		selected_token_gpu = run_dpp_kernel(mat, selected_token_num);
 	}
 	else if (dpp_spilt_kernel) {
-		selected_token_gpu = run_dpp_split_kernel(mat, selected_token_num);
+		selected_token_gpu = run_dpp_split_kernel(mat, g_max_ws_in_one_group, selected_token_num);
 	}
 
 	std::cout << "== Ref VS GPU result compare:" << std::endl;
