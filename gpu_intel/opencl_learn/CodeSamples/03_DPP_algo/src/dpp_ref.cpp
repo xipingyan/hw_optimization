@@ -62,8 +62,9 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& mat, size_t
     std::memset(cis_data, 0, cis.get_byte_size());
 
     // Greedy selection loop - this is the core DPP algorithm
+    #define PRINT_T 1
     for (size_t t = 0; t < num_tokens; ++t) {
-        if (m_config.pruning_debug_mode && t < 10)
+        if (m_config.pruning_debug_mode && t < PRINT_T)
             std::cout << "=== Select loop [" << t << "] ===" << std::endl;
         // Find the token with maximum marginal gain
         size_t best_idx = argmax(di2s);
@@ -78,7 +79,7 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& mat, size_t
         update_marginal_gains(t, best_idx, cis, di2s);
 
         // Debug output: print cis matrix content
-        if (m_config.pruning_debug_mode && t < 10) {
+        if (m_config.pruning_debug_mode && t < PRINT_T) {
             std::cout << "  CIS matrix shape: [" << (t+1) << ", " << total_tokens << "]" << std::endl;
 
             const float* cis_data_debug = cis.data;
@@ -104,7 +105,7 @@ std::vector<size_t> FastGreedyDPP::select_single_batch(const Tensor& mat, size_t
         }
 
         // Debug output: print updated conditional mat matrix after each selection
-        if (m_config.pruning_debug_mode && t < 10) {
+        if (m_config.pruning_debug_mode && t < PRINT_T) {
             // Print current selected indices
             std::cout << "  Selected tokens so far: [";
             for (size_t i = 0; i < selected_indices.size(); ++i) {

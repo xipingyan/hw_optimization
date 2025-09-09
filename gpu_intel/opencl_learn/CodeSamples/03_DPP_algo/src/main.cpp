@@ -18,8 +18,12 @@
 static size_t g_max_ws_in_one_group[3] = {0};
 static cl_uint g_max_compute_units = 0;
 
-std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token_num = 0)
+std::vector<int> run_dpp_kernel(Tensor &mat, int selected_token_num = 0)
 {
+	std::string kernel_fn = "../03_DPP_algo/src/dpp_kernel.cl";
+	std::string kernel_entry = "dpp_kernel";
+	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
+
 	assert(mat.m == mat.n);
 	float numerical_threshold = 1e-6f;
 
@@ -35,7 +39,7 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 	// gws_1 = 4;
 
 	// create buffers on the device
-	auto context = my_olc.get_context();
+	auto context = my_ocl.get_context();
 	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
 	cl::Buffer buffer_cis(context, CL_MEM_READ_WRITE, sizeof(float) * selected_token_num * total_tokens_num);
 	cl::Buffer buffer_di2s(context, CL_MEM_READ_WRITE, sizeof(float) * total_tokens_num);  // diagonal value.
@@ -44,10 +48,10 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 	cl::Buffer buffer_best_id(context, CL_MEM_READ_WRITE, sizeof(int));
 
 	// write mat to the device
-	my_olc.get_queue()->enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * mat.get_size(), mat.data);
-	my_olc.get_queue()->enqueueWriteBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num, output_ids.data());
+	my_ocl.get_queue()->enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * mat.get_size(), mat.data);
+	my_ocl.get_queue()->enqueueWriteBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num, output_ids.data());
 	
-	auto kernel_dpp = my_olc.get_kernel();
+	auto kernel_dpp = my_ocl.get_kernel();
 	kernel_dpp.setArg(0, buffer_mat);
 	kernel_dpp.setArg(1, buffer_cis);
 	kernel_dpp.setArg(2, buffer_di2s);
@@ -70,15 +74,15 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 	for (int l = 0; l < 3; l++)
 	{
 		auto t1 = std::chrono::high_resolution_clock::now();
-		my_olc.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat._b, gws_1, 1), cl::NDRange(mat._b, lws_1, 1));
-		my_olc.get_queue()->finish();
+		my_ocl.get_queue()->enqueueNDRangeKernel(kernel_dpp, cl::NullRange, cl::NDRange(mat._b, gws_1, 1), cl::NDRange(mat._b, lws_1, 1));
+		my_ocl.get_queue()->finish();
 		auto t2 = std::chrono::high_resolution_clock::now();
 		std::cout << "  == tm = " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms" << std::endl;
 	}
 
 	std::cout << "  == Start to copy output from device to host" << std::endl;
 	// Copy output from device to host
-	my_olc.get_queue()->enqueueReadBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num, output_ids.data());
+	my_ocl.get_queue()->enqueueReadBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num, output_ids.data());
 	std::cout << "      Copy from device to host finish. size = " << output_ids.size() << std::endl;
 	
 	// std::sort(output_ids.begin(), output_ids.end());
@@ -89,7 +93,6 @@ std::vector<int> run_dpp_kernel(CMyTest& my_olc, Tensor &mat, int selected_token
 
 	return output_ids;
 }
-
 
 std::vector<int> run_ref(Tensor& mat, int selected_token_num = 0) {
 	Config config;
@@ -109,8 +112,13 @@ std::vector<int> run_ref(Tensor& mat, int selected_token_num = 0) {
 		selected_token_num = config.visual_tokens_retain_percentage * mat.m;
 	}
 
+	// warm up
+	std::vector<std::vector<size_t>> selected_tokens;
+	std::cout << "  == calc reference warm up." << std::endl;
+	selected_tokens = dpp_selector->select(mat, selected_token_num);
+
 	auto t1 = std::chrono::high_resolution_clock::now();
-	auto selected_tokens = dpp_selector->select(mat, selected_token_num);
+	selected_tokens = dpp_selector->select(mat, selected_token_num);
 	auto t2 = std::chrono::high_resolution_clock::now();
 	std::cout << "  == CPU refer time = " << std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() << " ms" << std::endl;
 
@@ -128,19 +136,18 @@ int main()
 	std::cout << "== Test DPP algorithm. " << std::endl;
 	get_device_info(g_max_ws_in_one_group, g_max_compute_units);
 
-	std::string kernel_fn = "../03_DPP_algo/src/dpp_kernel.cl";
-	std::string kernel_entry = "dpp_kernel";
-	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
+	int M = 4000;
+	get_env_int("M", M);
+	bool dpp_one_group = true;
+	get_env_bool("ONE_GROUP", dpp_one_group);
+	bool dpp_spilt_kernel = false;
+	get_env_bool("SPLIT", dpp_spilt_kernel);
 
 	// ==================
-	std::cout << "== Generate random test data." << std::endl;
-	int m = 2048;
-	// m = 40;
-	m= 4000;
-	// m = 9;
-	auto mat = Tensor(1, m, m);
+	std::cout << "== Generate random test data." << std::endl;	
+	auto mat = Tensor(1, M, M);
 	mat.random_data();
-	int selected_token_num = m * 0.5;
+	int selected_token_num = M * 0.5;
 	// selected_token_num = 2;
 	
 	std::cout << "== Start to run DPP Reference." << std::endl;
@@ -148,13 +155,19 @@ int main()
 	selected_token_ref = run_ref(mat, selected_token_num);
 
 	std::cout << "== Start to run DPP GPU kernel." << std::endl;
-	auto selected_token_gpu = run_dpp_kernel(my_ocl, mat, selected_token_num);
+	std::vector<int> selected_token_gpu;
+	if (dpp_one_group) {
+		selected_token_gpu = run_dpp_kernel(mat, selected_token_num);
+	}
+	else if (dpp_spilt_kernel) {
+		selected_token_gpu = run_dpp_split_kernel(mat, selected_token_num);
+	}
 
 	std::cout << "== Ref VS GPU result compare:" << std::endl;
 	if (!is_same<int>(selected_token_ref, selected_token_gpu))
 	{
 		std::cout << "  == Fail, diff as follow:" << std::endl;
-		print_diff<int>(selected_token_ref, selected_token_gpu);
+		print_diff<int>(selected_token_ref, selected_token_gpu, 0.0001f, true);
 
 		std::cout << "== Failed." << std::endl;
 	}

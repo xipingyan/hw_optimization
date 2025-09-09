@@ -104,7 +104,7 @@ inline bool is_close(const std::vector<T> &vec1, const std::vector<T> &vec2, con
 }
 
 template <typename T>
-inline void print_diff(const std::vector<T> &vec1, const std::vector<T> &vec2, const float& thr = 0.0001f)
+inline void print_diff(const std::vector<T> &vec1, const std::vector<T> &vec2, const float& thr = 0.0001f, bool ret_in_first_diff = false)
 {
 	// 2. Iterate through elements and compare them
 	for (size_t i = 0; i < vec1.size(); ++i)
@@ -112,6 +112,8 @@ inline void print_diff(const std::vector<T> &vec1, const std::vector<T> &vec2, c
 		if (fabs(vec1[i] - vec2[i]) > thr)
 		{
 			std::cout << "   vec1[" << i << "] = " << vec1[i] << ", vec2[" << i << "] = " << vec2[i] << ", diff = " << fabs(vec1[i] - vec2[i]) << std::endl;
+			if (ret_in_first_diff)
+				return;
 		}
 	}
 }
