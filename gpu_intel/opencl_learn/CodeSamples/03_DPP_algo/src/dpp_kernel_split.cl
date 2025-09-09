@@ -32,7 +32,9 @@ __kernel void get_array_max_single_group(
             my_local_id = i;
         }
     }
-    // printf("** my_local_id=%d, my_local_max=%f, local_size=%d, lid_0=%d\n", my_local_id, my_local_max, local_size, lid_0);
+
+    // if (batch_id == 0 && lid_0 == 0)
+    //     printf("** my_local_id=%d, my_local_max=%f, local_size=%d, lid_0=%d\n", my_local_id, my_local_max, local_size, lid_0);
 
     // 将每个工作项找到的局部最大值写入共享本地内存
     local_max_array[lid_0] = my_local_max;

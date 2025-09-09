@@ -39,10 +39,14 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 
 	auto context = my_ocl.get_context();
 	// ** prepare kernel argmax ***********************************
-	std::vector<float> vec_di2s(total_tokens_num);
-	for (int i = 0; i < total_tokens_num; i++) {
-		vec_di2s[i] = mat.data[i * total_tokens_num + i];
+	std::vector<float> vec_di2s(total_tokens_num * 2);
+	for (int b = 0; b < mat._b; b++) {
+		float* pbuf = mat.data + b * mat.m * mat.n;
+		for (int i = 0; i < total_tokens_num; i++) {
+			vec_di2s[b * total_tokens_num + i] = pbuf[i * total_tokens_num + i];
+		}
 	}
+
 	cl::Buffer buffer_di2s(context, CL_MEM_READ_WRITE, sizeof(float) * total_tokens_num * mat._b);
 	cl::Buffer buffer_best_value(context, CL_MEM_READ_WRITE, sizeof(float) * mat._b);
 	cl::Buffer buffer_best_id(context, CL_MEM_READ_WRITE, sizeof(int) * mat._b);
