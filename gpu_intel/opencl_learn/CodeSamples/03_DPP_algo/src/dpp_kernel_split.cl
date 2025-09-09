@@ -94,10 +94,12 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
     // Subtract the projection onto previously selected vectors
     // sum(cis[:iteration, selected_idx] * cis[:iteration, j])
     float projection = 0.0f;
+    __attribute__((opencl_unroll_hint(4)))
     for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
     {
-        size_t cis_selected_idx = prev_t * total_tokens + selected_idx;
-        size_t cis_j_idx = prev_t * total_tokens + j;
+        size_t offset = prev_t * total_tokens;
+        size_t cis_selected_idx = offset + selected_idx;
+        size_t cis_j_idx = offset + j;
         projection += cis_data[cis_selected_idx] * cis_data[cis_j_idx];
     }
 
@@ -110,10 +112,9 @@ __kernel void update_marginal_gains(const int iteration, const int M, __global i
                                     __global float *cis_data, __global float *di2s_data,
                                     __global int* buffer_output_ids)
 {
-    uint gid_1 = get_global_id(1);
-    
+    uint gid_1 = get_global_id(1);    
     const int selected_idx = output_id[0];
- 
+
     uint j = gid_1;
     // Skip updating if this token is already selected (marked as negative infinity)
     if (di2s_data[j] == -INFINITY) {

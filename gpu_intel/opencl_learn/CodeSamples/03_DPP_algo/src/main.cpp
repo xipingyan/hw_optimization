@@ -136,7 +136,7 @@ int main()
 	std::cout << "== Test DPP algorithm. " << std::endl;
 	get_device_info(g_max_ws_in_one_group, g_max_compute_units);
 
-	int M = 4000;
+	int M = (3577+16)/16*16;
 	get_env_int("M", M);
 	bool dpp_one_group = true;
 	get_env_bool("ONE_GROUP", dpp_one_group);
@@ -145,6 +145,7 @@ int main()
 
 	// ==================
 	std::cout << "== Generate random test data." << std::endl;	
+	std::cout << "  M = " << M << std::endl;
 	auto mat = Tensor(1, M, M);
 	mat.random_data();
 	int selected_token_num = M * 0.5;
