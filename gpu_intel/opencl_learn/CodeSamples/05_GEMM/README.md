@@ -30,6 +30,8 @@ Preferred group size: 16       // lws：最好设置为16的倍数   <br>
 
 M = 3, K = 3584, N = 3584   <br>
 
+#### gemm_ref kernels
+
 gws=[M,N,1]
 lws=[1,1,1]
 
@@ -56,3 +58,11 @@ lws=[1,1,1]
 ```
 LWS_1=1 ENABLE_HALF=0 ENABLE_WEIGHT_TRANS=0 ENABLE_HALF4=0 ./05_GEMM/05_GEMM
 ```
+
+#### gemm_prepack_b
+
+|   gws     |   lws    | Kernel entry                 | Time ms  | onetrace gpu time |
+| ----------| -------- |:---------------------------- | :------  | :---------------- |
+| [M,N,1]   | [1,32,1] | gemm_half4_weight_trans      | 0.4644   | 0.395             |
+| [8,224,4] | [8,8,4]  | gemm_XMX_tput  USE_DPAS=1    | 0.3627   | 0.298             |
+| [8,224,4] | [8,8,4]  | gemm_XMX_tput  USE_DPASW=1   | 0.3496   | 0.278             |
