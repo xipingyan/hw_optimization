@@ -12,6 +12,8 @@ Try to write dpp algorithm based on OpenCL kernel.
 
 # Performance
 
+B=Batch, M=Token number, selected rate=50%. <br>
+
 | GPU                         |Driver         | B  | M    | Time ms | CPU         | CPU time |
 |:----------------------------|:--------------|:--:|:----:|:--------|:----------- | ------|
 |Intel(R) Iris(R) Xe Graphics | 32.0.101.6979 | 1  | 1792 | 66      | i7-1270P    | 38    |
