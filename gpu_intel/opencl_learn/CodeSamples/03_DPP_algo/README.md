@@ -16,6 +16,7 @@ Try to write dpp algorithm based on OpenCL kernel.
 |:----------------------------|:--------------|:--:|:----:|:--------|:----------- | ------|
 |Intel(R) Iris(R) Xe Graphics | 32.0.101.6979 | 1  | 1792 | 66      | i7-1270P    | 38    |
 |Intel(R) Iris(R) Xe Graphics | 32.0.101.6979 | 2  | 1792 | 100     | i7-1270P    | 74    |
+|Intel(R) Iris(R) Xe Graphics | 32.0.101.6979 | 1  | 3584 | 570     | i7-1270P    | 117   |
 |B580                         | 24.52.32224   | 1  | 1792 | 239     | i9-14900K   |   139 |
 |B580                         | 24.52.32224   | 2  | 1792 | 249     | i9-14900K   |   259 |
 |B580                         | 24.52.32224   | 1  | 3584 | 899     | i9-14900K   |   431 |
@@ -39,5 +40,5 @@ Intel(R) Iris(R) Xe Graphics <br>
 
 #### Profiling GPU kernel found：
 
-``1:`` Kernel time is releated to CPU ``enqueueNDRangeKernel``, some driver have better performance(driver:25.18.33578) <br>
+``1:`` Kernel time is related to CPU ``enqueueNDRangeKernel``, some driver have better performance(driver:25.18.33578) <br>
 ``2:`` Pure kernel time is about 10ms. (from onetrace on the B580) <br>
