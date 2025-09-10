@@ -40,6 +40,8 @@ Intel(R) Iris(R) Xe Graphics <br>
     gws = [2, 1792, 1]
     lws = [1, 16, 1]
 
+For B580, Driver 24.52.32224 and 25.18.33578 have similar performance. <br>
+
 #### Profiling GPU kernel found：
 
 ``1:`` Kernel time is related to CPU ``enqueueNDRangeKernel``, some driver have better performance(driver:25.18.33578) <br>
