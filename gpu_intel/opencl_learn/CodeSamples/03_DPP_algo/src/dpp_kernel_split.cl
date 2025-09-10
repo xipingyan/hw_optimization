@@ -183,14 +183,63 @@ __kernel void update_marginal_gains(const int iteration, const int M, __global i
 __kernel void update_step_2_3(__global const float *inp_mat, const int M, __global int *output_id,
                               int iteration, __global float *cis, __global float *di2s,
                               const float numerical_threshold, const int selected_token_num,
-                              __global int* output_ids)
+                              __global int *output_ids,
+                              __local float *local_max_array,
+                              __local int *local_max_ids)
 {
     uint batch_idx = get_global_id(0);
     uint gid_1 = get_global_id(1);
-    uint gid_2 = get_global_id(2);
 
-    const int selected_idx = output_id[batch_idx];
+    uint lid_0 = get_local_id(1);
+    uint local_size = get_local_size(1);
 
+    // 初始化本地最大值为一个极小值
+    float my_local_max = -FLT_MAX;
+    int my_local_id = 0;
+    __global const float* pdata = di2s + batch_idx * M;
+
+    for (int i = lid_0; i < M; i += local_size) {
+        if (i < M) {
+            if (pdata[i] > my_local_max) {
+                my_local_max = pdata[i];
+                my_local_id = i;
+            }
+        }
+    }
+
+    // 将每个工作项找到的局部最大值写入共享本地内存
+    local_max_array[lid_0] = my_local_max;
+    local_max_ids[lid_0] = my_local_id;
+
+    // 同步，确保所有工作项都已完成第一阶段的写入
+    barrier(CLK_LOCAL_MEM_FENCE);
+
+    // --- 阶段2：并行规约在本地内存中找到最终最大值 ---
+    // 这个循环将不断减半，直到 local_max_array[0] 包含最终结果
+    for (size_t s = local_size / 2; s > 0; s >>= 1) {
+        if (lid_0 < s) {
+            // 将当前位置的值与另一个位置的值进行比较
+            if (local_max_array[lid_0 + s] > local_max_array[lid_0] ) {
+                local_max_array[lid_0] = local_max_array[lid_0 + s];
+                local_max_ids[lid_0] = local_max_ids[lid_0 + s];
+            }
+        }
+        // 同步，确保本轮比较完成后，数据对所有线程都可见
+        barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    // --- 阶段3：将最终结果写回全局内存 ---
+    // 只有本地 ID 为0 的工作项执行此操作
+    // if (lid_0 == 0) {
+    //     output_id[batch_idx] = local_max_ids[0];
+    // }
+    // barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
+
+    // Step 2:
+    if (gid_1 >= M)
+        return;
+
+    const int selected_idx = local_max_ids[0];
     size_t offset = batch_idx * M * M;
     size_t total_tokens = M;
     __global const float *kernel_data = inp_mat + offset;

@@ -38,9 +38,6 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 	}
 	std::vector<int> output_ids(selected_token_num * mat._b, -1);
 
-	auto kernel_argmax = get_kernel_argmax(my_ocl);
-	auto kernel_update_orthogonal_vector = my_ocl.get_kernel();
-
 	auto context = my_ocl.get_context();
 	// ** prepare kernel argmax ***********************************
 	std::vector<float> vec_di2s(total_tokens_num * 2);
@@ -53,9 +50,33 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 
 #define ENABLE_KERNEL_MERGE 1
 
-	cl::Buffer buffer_di2s(context, CL_MEM_READ_WRITE, sizeof(float) * total_tokens_num * mat._b);
-	cl::Buffer buffer_best_value(context, CL_MEM_READ_WRITE, sizeof(float) * mat._b);
 	cl::Buffer buffer_best_id(context, CL_MEM_READ_WRITE, sizeof(int) * mat._b);
+	cl::Buffer buffer_di2s(context, CL_MEM_READ_WRITE, sizeof(float) * total_tokens_num * mat._b);
+
+#if ENABLE_KERNEL_MERGE
+	// kernel 2/3
+	auto merged_kernel = my_ocl.get_kernel("update_step_2_3");
+	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
+	cl::Buffer buffer_cis(context, CL_MEM_READ_WRITE, sizeof(float) * selected_token_num * total_tokens_num * mat._b);
+	cl::Buffer buffer_output_ids(context, CL_MEM_READ_WRITE, sizeof(int) * selected_token_num * mat._b);
+	cl::NDRange gws = cl::NDRange(mat._b, (mat.m + 15) / 16 * 16, 1);
+	cl::NDRange lws = cl::NDRange(1, std::min(mat.m, 16), 1);
+	merged_kernel.setArg(0, buffer_mat);
+	merged_kernel.setArg(1, mat.m);
+	merged_kernel.setArg(2, buffer_best_id);
+	merged_kernel.setArg(4, buffer_cis);
+	merged_kernel.setArg(5, buffer_di2s);
+	merged_kernel.setArg(6, numerical_threshold);
+	merged_kernel.setArg(7, selected_token_num);
+	merged_kernel.setArg(8, buffer_output_ids);
+	merged_kernel.setArg(9, sizeof(float) * lws[1], nullptr);
+	merged_kernel.setArg(10, sizeof(int) * lws[1], nullptr);
+	std::cout << "  gws = [" << gws[0] << ", " << gws[1] << ", " << gws[2] << "]" << std::endl;
+	std::cout << "  lws = [" << lws[0] << ", " << lws[1] << ", " << lws[2] << "]" << std::endl;
+#else
+	auto kernel_argmax = get_kernel_argmax(my_ocl);
+	auto kernel_update_orthogonal_vector = my_ocl.get_kernel();
+	cl::Buffer buffer_best_value(context, CL_MEM_READ_WRITE, sizeof(float) * mat._b);
 	int max_group_sz = max_ws_in_one_group[1];
 	cl::NDRange argmax_gws = cl::NDRange(mat._b, max_group_sz, 1);
 	cl::NDRange argmax_lws = cl::NDRange(1, max_group_sz, 1);
@@ -68,26 +89,6 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 	std::cout << "  argmax_gws = [" << argmax_gws[0] << ", " << argmax_gws[1] << ", " << argmax_gws[2] << "]" << std::endl;
 	std::cout << "  argmax_lws = [" << argmax_lws[0] << ", " << argmax_lws[1] << ", " << argmax_lws[2] << "]" << std::endl;
 
-#if ENABLE_KERNEL_MERGE
-	// kernel 2/3
-	auto merged_kernel = my_ocl.get_kernel("update_step_2_3");
-	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
-	cl::Buffer buffer_cis(context, CL_MEM_READ_WRITE, sizeof(float) * selected_token_num * total_tokens_num * mat._b);
-	cl::Buffer buffer_output_ids(context, CL_MEM_READ_WRITE, sizeof(int) * selected_token_num * mat._b);
-	cl::NDRange gws = cl::NDRange(mat._b, mat.m, 1);
-	cl::NDRange lws = cl::NDRange(1, std::min(mat.m, 16), 1);
-	merged_kernel.setArg(0, buffer_mat);
-	merged_kernel.setArg(1, mat.m);
-	merged_kernel.setArg(2, buffer_best_id);
-	merged_kernel.setArg(4, buffer_cis);
-	merged_kernel.setArg(5, buffer_di2s);
-	merged_kernel.setArg(6, numerical_threshold);
-	merged_kernel.setArg(7, selected_token_num);
-	merged_kernel.setArg(8, buffer_output_ids);
-	std::cout << "  gws = [" << gws[0] << ", " << gws[1] << ", " << gws[2] << "]" << std::endl;
-	std::cout << "  lws = [" << lws[0] << ", " << lws[1] << ", " << lws[2] << "]" << std::endl;
-
-#else
 	// prepare kernel update orthogonal vector
 	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
 	cl::Buffer buffer_cis(context, CL_MEM_READ_WRITE, sizeof(float) * selected_token_num * total_tokens_num * mat._b);
@@ -123,11 +124,6 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 		std::vector<cl::Event> eventList;
 		for (size_t t = 0; t < selected_token_num; ++t)
 		{
-			// Step 1: argmax
-			cl::Event eventA;
-			my_ocl.get_queue()->enqueueNDRangeKernel(kernel_argmax, cl::NullRange, argmax_gws, argmax_lws, &eventList, &eventA);
-			eventList.push_back(eventA);
-
 #if ENABLE_KERNEL_MERGE
 			cl::Event eventB;
 			// Step 2: update orthogonal vector
@@ -135,6 +131,11 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 			my_ocl.get_queue()->enqueueNDRangeKernel(merged_kernel, cl::NullRange, gws, lws, &eventList, &eventB);
 			eventList.push_back(eventB);
 #else
+			// Step 1: argmax
+			cl::Event eventA;
+			my_ocl.get_queue()->enqueueNDRangeKernel(kernel_argmax, cl::NullRange, argmax_gws, argmax_lws, &eventList, &eventA);
+			eventList.push_back(eventA);
+
 			cl::Event eventB;
 			// Step 2: update orthogonal vector
 			kernel_update_orthogonal_vector.setArg(3, t);
