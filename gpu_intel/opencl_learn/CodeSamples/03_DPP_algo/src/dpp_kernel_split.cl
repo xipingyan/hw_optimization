@@ -104,6 +104,7 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
     __global float *cis_selected_t = cis_data + selected_token_num * selected_idx;
     __global float *cis_t = cis_data + selected_token_num * j;
 
+#if 0 // float4
     int iter4 = iteration / 4;
     int iter_remain = iteration % 4;
     for (size_t prev_t = 0; prev_t < iter4; ++prev_t)
@@ -119,6 +120,13 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
         half b_val = cis_t[prev_t];
         projection += cis_selected_t[prev_t] * cis_t[prev_t];
     }
+#else
+    __attribute__((opencl_unroll_hint(4)))
+    for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
+    {
+        projection += cis_selected_t[prev_t] * cis_t[prev_t];
+    }
+#endif
 
     // Store the orthogonalized vector element
     size_t cis_current_idx = iteration + j * selected_token_num;
