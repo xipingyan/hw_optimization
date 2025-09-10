@@ -93,11 +93,10 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 
 	for (int l = 0; l < 3; l++)
 	{
+		auto t1 = std::chrono::high_resolution_clock::now();
 		my_ocl.get_queue()->enqueueWriteBuffer(buffer_di2s, CL_TRUE, 0, sizeof(float) * total_tokens_num * mat._b, vec_di2s.data());
 		my_ocl.get_queue()->enqueueWriteBuffer(buffer_mat, CL_TRUE, 0, sizeof(float) * mat.get_size(), mat.data);
-		my_ocl.get_queue()->enqueueWriteBuffer(buffer_output_ids, CL_TRUE, 0, sizeof(int) * selected_token_num * mat._b, output_ids.data());
 
-		auto t1 = std::chrono::high_resolution_clock::now();
 		std::vector<cl::Event> eventList;
 		for (size_t t = 0; t < selected_token_num; ++t)
 		{
