@@ -44,5 +44,5 @@ For B580, Driver 24.52.32224 and 25.18.33578 have similar performance. <br>
 
 #### Profiling GPU kernel found：
 
-``1:`` Kernel time is related to CPU ``enqueueNDRangeKernel``, some driver have better performance(driver:25.18.33578) <br>
+``1:`` Kernel time is related to CPU ``enqueueNDRangeKernel``, some drivers have better performance(driver:25.18.33578) <br>
 ``2:`` Pure kernel time is about 10ms. (from onetrace on the B580) <br>
