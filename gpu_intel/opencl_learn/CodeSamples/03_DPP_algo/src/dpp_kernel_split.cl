@@ -101,11 +101,22 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
     float projection = 0.0f;
 
 #if TRANSPOSE_CIS
-    // __attribute__((opencl_unroll_hint(4)))
     __global float *cis_selected_t = cis_data + selected_token_num * selected_idx;
     __global float *cis_t = cis_data + selected_token_num * j;
-    for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
+
+    int iter4 = iteration / 4;
+    int iter_remain = iteration % 4;
+    for (size_t prev_t = 0; prev_t < iter4; ++prev_t)
     {
+        float4 a_vec = vload4(0, cis_selected_t + prev_t * 4);
+        float4 b_vec = vload4(0, cis_t + prev_t * 4);
+        projection += dot(a_vec, b_vec);
+        // projection += cis_selected_t[prev_t] * cis_t[prev_t];
+    }
+    for (int prev_t = iter4 - iter_remain; prev_t < iteration; ++prev_t)
+    {
+        half a_val = cis_selected_t[prev_t];
+        half b_val = cis_t[prev_t];
         projection += cis_selected_t[prev_t] * cis_t[prev_t];
     }
 

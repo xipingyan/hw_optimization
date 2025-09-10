@@ -153,7 +153,7 @@ int main()
 	mat.random_data();
 	int selected_token_num = M * 0.5;
 	// selected_token_num = 1;
-	
+
 	std::cout << "== Start to run DPP Reference." << std::endl;
 	std::vector<int> selected_token_ref;
 	selected_token_ref = run_ref(mat, selected_token_num);
