@@ -172,7 +172,7 @@ void FastGreedyDPP::update_orthogonal_vector(const Tensor& mat, size_t batch_idx
                                            size_t iteration, Tensor& cis, const Tensor& di2s) {
     // This implements the key DPP orthogonalization step:
     // eis = (mat[batch, selected_idx] - sum(cis[:iteration] * cis[:iteration, selected_idx])) / sqrt(di2s[selected_idx])
-#if 0
+#if 1
     size_t total_tokens = mat.m;
 
     const float *kernel_data = mat.data + batch_idx * mat.m * mat.m;
@@ -182,7 +182,7 @@ void FastGreedyDPP::update_orthogonal_vector(const Tensor& mat, size_t batch_idx
     float norm_factor = std::sqrt(di2s_data[selected_idx] + m_config.numerical_threshold);
     float inv_norm = 1.0f / norm_factor;
 
-    size_t base_kernel_offset = batch_idx * total_tokens * total_tokens + selected_idx * total_tokens;
+    size_t base_kernel_offset = selected_idx * total_tokens;
     const float *kernel_row = kernel_data + base_kernel_offset;
 
     float *cis_out = cis_data + iteration * total_tokens;
