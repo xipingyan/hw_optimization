@@ -10,8 +10,9 @@
 #include <algorithm>
 
 #include "my_log.hpp"
-#include "level_zero/ze_api.h"
 
+#ifndef _WIN32
+#include "level_zero/ze_api.h"
 // Check all ze function return.
 #define CHECK_RET(RET)                                                                                                      \
     if (ZE_RESULT_SUCCESS != RET)                                                                                           \
@@ -43,6 +44,7 @@ inline std::string ze_rslt_to_str(ze_result_t r) {
 		}                                                                                                                               \
 	}
 #endif
+#endif // WIN32
 
 class CKernelBinFile
 {

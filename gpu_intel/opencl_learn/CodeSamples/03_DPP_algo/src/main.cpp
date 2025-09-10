@@ -20,7 +20,11 @@ static cl_uint g_max_compute_units = 0;
 
 std::vector<int> run_dpp_kernel(Tensor &mat, int selected_token_num = 0)
 {
+	#ifdef _WIN32
+	std::string kernel_fn = "C:\\mygithub\\hw_optimization\\gpu_intel\\opencl_learn\\CodeSamples\\03_DPP_algo\\src\\dpp_kernel.cl";
+	#else
 	std::string kernel_fn = "../03_DPP_algo/src/dpp_kernel.cl";
+	#endif
 	std::string kernel_entry = "dpp_kernel";
 	auto my_ocl = CMyTest(kernel_entry, kernel_fn);
 
@@ -136,13 +140,14 @@ int main()
 	std::cout << "== Test DPP algorithm. " << std::endl;
 	get_device_info(g_max_ws_in_one_group, g_max_compute_units);
 
-	int M = (3577+16)/16*16;
-	int B = 1;
+	int B = 2;
+	int M = (3577 + 16) / 16 * 16 / 2;
+
 	get_env_int("M", M);
 	get_env_int("B", B);
-	bool dpp_one_group = true;
+	bool dpp_one_group = false;
 	get_env_bool("ONE_GROUP", dpp_one_group);
-	bool dpp_spilt_kernel = false;
+	bool dpp_spilt_kernel = true;
 	get_env_bool("SPLIT", dpp_spilt_kernel);
 
 	// ==================
