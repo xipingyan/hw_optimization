@@ -2,6 +2,7 @@
 #pragma OPENCL EXTENSION cl_khr_global_int32_extended_atomics : enable
 #pragma OPENCL EXTENSION cl_intel_printf : enable
 
+#define TRANSPOSE_CIS 1
 
 // 跨group，OpenCL本身是不支持同步的，所以求最大值这种操作，必须在一个group内完成。
 // Step1: 获取最大支持的group size(一个group最大支持的workitem)，
@@ -98,7 +99,20 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
     // Subtract the projection onto previously selected vectors
     // sum(cis[:iteration, selected_idx] * cis[:iteration, j])
     float projection = 0.0f;
-    __attribute__((opencl_unroll_hint(4)))
+
+#if TRANSPOSE_CIS
+    // __attribute__((opencl_unroll_hint(4)))
+    __global float *cis_selected_t = cis_data + selected_token_num * selected_idx;
+    __global float *cis_t = cis_data + selected_token_num * j;
+    for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
+    {
+        projection += cis_selected_t[prev_t] * cis_t[prev_t];
+    }
+
+    // Store the orthogonalized vector element
+    size_t cis_current_idx = iteration + j * selected_token_num;
+    cis_data[cis_current_idx] = (kernel_val - projection) / norm_factor;
+#else
     for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
     {
         size_t offset = prev_t * total_tokens;
@@ -106,10 +120,10 @@ __kernel void update_orthogonal_vector(__global const float *inp_mat, const int 
         size_t cis_j_idx = offset + j;
         projection += cis_data[cis_selected_idx] * cis_data[cis_j_idx];
     }
-
     // Store the orthogonalized vector element
     size_t cis_current_idx = iteration * total_tokens + j;
     cis_data[cis_current_idx] = (kernel_val - projection) / norm_factor;
+#endif
 }
 
 __kernel void update_marginal_gains(const int iteration, const int M, __global int *output_id,
@@ -130,7 +144,11 @@ __kernel void update_marginal_gains(const int iteration, const int M, __global i
         return;
     }
 
+#if TRANSPOSE_CIS
+    size_t cis_idx = iteration + j * selected_token_num;
+#else
     size_t cis_idx = iteration * M + j;
+#endif
     float eis_j = cis_data[cis_idx];
 
     // Subtract the squared orthogonal component
@@ -138,6 +156,7 @@ __kernel void update_marginal_gains(const int iteration, const int M, __global i
         di2s_data[selected_idx] = -INFINITY;
         output_ids_data[iteration] = selected_idx;
     }
-    else
+    else {
         di2s_data[j] -= eis_j * eis_j;
+    }
 }
