@@ -102,7 +102,7 @@ struct Tensor {
 		// FILE *pf = fopen("input_mat.bin", "wb");
 		for (int i = 0; i < _b * m * n; i++)
 		{
-			data[i] = dis(gen);
+			data[i] = dis(gen) * 0.1f;
 			// fwrite(&data[i], sizeof(float), 1, pf);
 		}
 		// fclose(pf);

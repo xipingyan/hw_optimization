@@ -190,6 +190,7 @@ __kernel void update_step_2_3(__global const float *inp_mat, const int M, __glob
     uint batch_idx = get_global_id(0);
     uint gid_1 = get_global_id(1);
 
+    // Step 1: argmax
     uint lid_0 = get_local_id(1);
     uint local_size = get_local_size(1);
 
@@ -228,14 +229,7 @@ __kernel void update_step_2_3(__global const float *inp_mat, const int M, __glob
         barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    // --- 阶段3：将最终结果写回全局内存 ---
-    // 只有本地 ID 为0 的工作项执行此操作
-    // if (lid_0 == 0) {
-    //     output_id[batch_idx] = local_max_ids[0];
-    // }
-    // barrier(CLK_LOCAL_MEM_FENCE | CLK_GLOBAL_MEM_FENCE);
-
-    // Step 2:
+    // Step 2: update orthogonal vector.
     if (gid_1 >= M)
         return;
 
@@ -271,7 +265,7 @@ __kernel void update_step_2_3(__global const float *inp_mat, const int M, __glob
     size_t cis_current_idx = iteration + j * selected_token_num;
     cis_data[cis_current_idx] = (kernel_val - projection) / norm_factor;
 
-    // step 3:
+    // step 3: update_marginal_gains
     size_t cis_idx = iteration + j * selected_token_num;
     float eis_j = cis_data[cis_idx];
 
