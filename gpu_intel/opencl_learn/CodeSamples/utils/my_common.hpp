@@ -8,6 +8,7 @@
 #include <random>
 #include <functional>
 #include <algorithm>
+#include <chrono>
 
 #include "my_log.hpp"
 
@@ -43,8 +44,8 @@ inline std::string ze_rslt_to_str(ze_result_t r) {
 			exit(0);                                                                                                                    \
 		}                                                                                                                               \
 	}
-#endif
-#endif // WIN32
+#endif // SUCCESS_OR_TERMINATE
+#endif // _WIN32
 
 class CKernelBinFile
 {
