@@ -180,7 +180,7 @@ __kernel void update_marginal_gains(const int iteration, const int M, __global i
     }
 }
 
-__kernel void update_step_2_3(__global const float *inp_mat, const int M, __global int *output_id,
+__kernel void dpp_merged_kernel(__global const float *inp_mat, const int M,
                               int iteration, __global float *cis, __global float *di2s,
                               const float numerical_threshold, const int selected_token_num,
                               __global int *output_ids,
