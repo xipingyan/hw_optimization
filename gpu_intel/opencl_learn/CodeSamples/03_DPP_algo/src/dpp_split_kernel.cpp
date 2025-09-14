@@ -58,8 +58,9 @@ std::vector<int> run_dpp_split_kernel(Tensor &mat, size_t *max_ws_in_one_group, 
 	cl::Buffer buffer_mat(context, CL_MEM_READ_ONLY, sizeof(float) * mat.get_size());
 	cl::Buffer buffer_cis(context, CL_MEM_READ_WRITE, sizeof(float) * selected_token_num * total_tokens_num * mat._b);
 	cl::Buffer buffer_output_ids(context, CL_MEM_READ_WRITE, sizeof(int) * selected_token_num * mat._b);
-	cl::NDRange gws = cl::NDRange(mat._b, (mat.m + 15) / 16 * 16, 1);
-	cl::NDRange lws = cl::NDRange(1, std::min(mat.m, 16), 1);
+#define LWS 16
+	cl::NDRange gws = cl::NDRange(mat._b, (mat.m + LWS - 1) / LWS * LWS, 1);
+	cl::NDRange lws = cl::NDRange(1, std::min(mat.m, LWS), 1);
 	merged_kernel.setArg(0, buffer_mat);
 	merged_kernel.setArg(1, mat.m);
 	merged_kernel.setArg(3, buffer_cis);
