@@ -197,12 +197,12 @@ __kernel void dpp_merged_kernel(__global const float *inp_mat, const int M,
     // 初始化本地最大值为一个极小值
     float my_local_max = -FLT_MAX;
     int my_local_id = 0;
-    __global const float* pdata = di2s + batch_idx * M;
+    __global float *di2s_data = di2s + batch_idx * M;
 
     for (int i = lid_0; i < M; i += local_size) {
         if (i < M) {
-            if (pdata[i] > my_local_max) {
-                my_local_max = pdata[i];
+            if (di2s_data[i] > my_local_max) {
+                my_local_max = di2s_data[i];
                 my_local_id = i;
             }
         }
@@ -234,10 +234,8 @@ __kernel void dpp_merged_kernel(__global const float *inp_mat, const int M,
         return;
 
     const int selected_idx = local_max_ids[0];
-    size_t offset = batch_idx * M * M;
     size_t total_tokens = M;
-    __global const float *kernel_data = inp_mat + offset;
-    __global float *di2s_data = di2s + batch_idx * M;
+    __global const float *kernel_data = inp_mat + batch_idx * M * M;
     __global float *cis_data = cis + batch_idx * M * selected_token_num;
     __global int* output_ids_data = output_ids + batch_idx * selected_token_num;
 
@@ -256,7 +254,8 @@ __kernel void dpp_merged_kernel(__global const float *inp_mat, const int M,
     __global float *cis_selected_t = cis_data + selected_token_num * selected_idx;
     __global float *cis_t = cis_data + selected_token_num * j;
 
-    __attribute__((opencl_unroll_hint(4))) for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
+    __attribute__((opencl_unroll_hint(4))) 
+    for (size_t prev_t = 0; prev_t < iteration; ++prev_t)
     {
         projection += cis_selected_t[prev_t] * cis_t[prev_t];
     }
